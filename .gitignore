@@ -13,3 +13,8 @@ export_presets.cfg
 .mono/
 data_*/
 mono_crash.*.json
+*.obj
+*.o
+__pycache__/
+cmake-build-debug/
+.idea/
