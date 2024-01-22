@@ -16,8 +16,10 @@
 #define DB_PERLIN_IMPL
 #include "db_perlin.hpp"
 
-class YarnVoxel : public RefCounted {
-	GDCLASS(YarnVoxel, RefCounted);
+class YVoxelChunk;
+
+class YarnVoxel : public Object {
+	GDCLASS(YarnVoxel, Object);
 
 	Node3D* main_node_pointer;
 	int count;
@@ -59,6 +61,7 @@ public:
 	Vector3i forwardup = Vector3i(0, 1, 1);
 	float water_level;
 	Ref<Material> material;
+	String default_material_path;
 	Callable callable_chunk_completed_callback;
 	StringName chunk_completed_callback;
 	enum BlockType {
@@ -141,7 +144,7 @@ public:
 	static Vector3i GetPointNumberFromPosition(Vector3 pos);
 	Vector3i FindPointNumberFromPosition(Vector3 pos);
 
-	float FindFloatValueForPos(Vector3 pos);
+	int16_t FindFloatValueForPos(Vector3 pos);
 
 	int FindBlockTypeForPos(Vector3 pos);
 

@@ -13,7 +13,7 @@ namespace godot {
 	    void _notification(int p_what);
         YarnVoxelEditorPlugin() = default;
         ~YarnVoxelEditorPlugin() = default;
-        static constexpr const char* INITIALIZE_BASE_PATH = "General";
+        static constexpr const char* INITIALIZE_BASE_PATH = "general";
         static constexpr const char* CELL_SIZE_OPTION = "cell_size";
 
     private:

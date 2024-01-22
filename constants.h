@@ -11,10 +11,29 @@
 static constexpr const char* YARNVOXEL_SETTINGS_BASE_PATH = "YarnVoxel";
 static constexpr const int YARNVOXEL_CHUNK_WIDTH = 32;
 static constexpr const int YARNVOXEL_CHUNK_HEIGHT = 32;
-static constexpr const float YARNVOXEL_TERRAIN_SURFACE = 0.0;
+static constexpr const int16_t YARNVOXEL_TERRAIN_SURFACE = 0.0;
 static const Vector3 YARNVOXEL_VECTOR3_ZERO = {0.0,0.0,0.0};
 static const Vector3i YARNVOXEL_VECTOR3I_ZERO = {0,0,0};
 static const Vector2i YARNVOXEL_VECTOR2I_ZERO = {0,0};
+static constexpr const int16_t ZERO_SHORT = 0;
+static constexpr const int16_t BIT_LESS_THAN_ZERO_SHORT = -83;
+static constexpr const int16_t BIT_MORE_THAN_ZERO_SHORT = 83;
+static constexpr const int16_t LESS_THAN_ZERO_SHORT = -165;
+static constexpr const int16_t MORE_THAN_ZERO_SHORT = 165;
+static constexpr const int16_t ALMOST_FULL_SHORT = 13106;
+static constexpr const int16_t ALMOST_EMPTY_SHORT = -13106;
+
+inline int16_t floatToInt16(float value) {
+	if (value < -0.9999f) return INT16_MIN;
+	if (value > 0.9999f) return INT16_MAX;
+	return static_cast<int16_t>(value * INT16_MAX);
+}
+
+// Int16 to Float
+inline float int16ToFloat(int16_t value) {
+	return static_cast<float>(value) / static_cast<float>(INT16_MAX);
+}
+
 namespace YarnVoxelData {
 	struct _NO_DISCARD_ YVTriangleData {
 		Vector3 v1;
@@ -30,9 +49,9 @@ namespace YarnVoxelData {
 
 	struct _NO_DISCARD_ YVPointValue {
 		uint8_t byteValue;
-		float floatValue;
+		int16_t floatValue;
 		uint8_t health;
-		YVPointValue(uint8_t bv = 0, float fv = 1.0, uint8_t hv = 255)
+		explicit YVPointValue(uint8_t bv = 0, int16_t fv = INT16_MAX, uint8_t hv = 255)
 			: byteValue(bv), floatValue(fv), health(hv) {}
 	};
 
@@ -683,3 +702,4 @@ namespace YarnVoxelData {
 
 }
 #endif //YARNVOXELCONSTANTS_H
+

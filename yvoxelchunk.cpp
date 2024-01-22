@@ -53,11 +53,104 @@ void YVoxelChunk::add_triangle(Vector3 vert1,Vector3 vert2,Vector3 vert3,Surface
     surface_tool->add_index(count_of_vertex-1);
 }
 
+bool YVoxelChunk::compare_float_values_sameish(int16_t f1, int16_t f2) {
+    return (ABS(f1 - f2) < MORE_THAN_ZERO_SHORT) || ((f1 > ALMOST_FULL_SHORT && f2 > ALMOST_FULL_SHORT) || (f1 < ALMOST_EMPTY_SHORT && f2 < ALMOST_EMPTY_SHORT));
+}
+
+void YVoxelChunk::serialize_to_data() {
+    data.clear();
+    uint8_t hint_is_count = 254;
+    uint16_t count = 0;
+    uint8_t value = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].byteValue;
+    int16_t floatValue = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].floatValue;
+    for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; --y) {
+        for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; ++z) {
+            for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; ++x) {
+                if (points[x][y][z].byteValue == value && compare_float_values_sameish(floatValue, points[x][y][z].floatValue)) {
+                    ++count;
+                } else {
+                    handle_serialization_count(hint_is_count, count, value, floatValue);
+                    value = points[x][y][z].byteValue;
+                    floatValue = points[x][y][z].floatValue;
+                    count = 1;
+                }
+            }
+        }
+    }
+
+    //Gotta call for the last run since the for loop is over by now.
+    handle_serialization_count(hint_is_count, count, value, floatValue);
+}
+
+void YVoxelChunk::handle_serialization_count(uint8_t hint_is_count, uint16_t count, uint8_t value, int16_t floatValue) {
+    if (count > 1) {
+        //There's multiple of the same
+        //Write max value so it knows to expect a count.
+        data.append(hint_is_count);
+        //Write the actual value.
+        data.append(value);
+        //Write float value
+        data.append(reinterpret_cast<uint8_t *>(&floatValue)[0]);
+        data.append(reinterpret_cast<uint8_t *>(&floatValue)[1]);
+
+        //Write count of same
+        data.append(reinterpret_cast<uint8_t *>(&count)[0]);
+        data.append(reinterpret_cast<uint8_t *>(&count)[1]);
+    } else {
+        //It's not a count, it's an actual value, so append it.
+        data.append(value);
+        //Convert float to int16 and write it.
+        data.append(reinterpret_cast<uint8_t *>(&floatValue)[0]);
+        data.append(reinterpret_cast<uint8_t *>(&floatValue)[1]);
+    }
+}
+
+void YVoxelChunk::deserialize_from_data() {
+    if (data.size() == 0) {
+        WARN_PRINT("[YarnVoxel] Attempt to deserilaize data from an empty buffer when deserializing chunk");
+        return;
+    }
+    int bufferIndex = 0;
+    int z = 0, x = 0, y = YARNVOXEL_CHUNK_HEIGHT-1;
+    constexpr uint8_t hint_is_count = static_cast<uint8_t>(254);
+    int16_t actual_float_value = ZERO_SHORT;
+    while (bufferIndex < data.size()) {
+        uint8_t value = data[bufferIndex++];
+        uint16_t count = 1;
+        if (value == hint_is_count) {
+            value = data[bufferIndex++];
+            const auto byte1 = data[bufferIndex++];
+            const auto byte2 = data[bufferIndex++];
+            actual_float_value = static_cast<int16_t>(byte1 | (byte2 << 8));
+            const auto byte3 = data[bufferIndex++];
+            const auto byte4 = data[bufferIndex++];
+            count = static_cast<uint16_t>(byte3 | (byte4 << 8));
+        } else {
+            const auto byte1 = data[bufferIndex++];
+            const auto byte2 = data[bufferIndex++];
+            actual_float_value = static_cast<int16_t>(byte1 | (byte2 << 8));
+        }
+
+        for (uint16_t i = 0; i < count; ++i) {
+            points[x][y][z].byteValue = value;
+            points[x][y][z].floatValue = actual_float_value;
+            if (++x >= YARNVOXEL_CHUNK_WIDTH) { x = 0;
+                if (++z >= YARNVOXEL_CHUNK_WIDTH) { z = 0;
+                    if (--y < 0) return;
+                }
+            }
+        }
+    }
+
+}
+
 void YVoxelChunk::generate() {
     //TIMING!
     auto start = std::chrono::high_resolution_clock::now();
     water_level = YarnVoxel::get_singleton()->water_level;
     const YarnVoxelData::YVPointValue defaultValue = YarnVoxelData::YVPointValue();
+    data.clear();
+
     for (int nbx = 0; nbx < 2; nbx++) {
         for (int nby = 0; nby < 2; nby++) {
             for (int nbz = 0; nbz < 2; nbz++) {
@@ -131,10 +224,30 @@ void YVoxelChunk::generate() {
         }
     }
 
+
+    constexpr uint8_t hint_is_count = 254;
+    uint16_t count = 0;
+    uint8_t value = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].byteValue;
+    int16_t floatValue = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].floatValue;
+
     uint8_t debugging_config = YarnVoxel::get_singleton()->get_debugging_config();
-    for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
-        for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
-            for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
+    for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
+        for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
+            for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++){
+                // START SERIALIZATION SECTION
+                if (points[x][y][z].byteValue == value && compare_float_values_sameish(floatValue, points[x][y][z].floatValue)) {
+                    ++count;
+                } else {
+                    handle_serialization_count(hint_is_count, count, value, floatValue);
+                    value = points[x][y][z].byteValue;
+                    floatValue = points[x][y][z].floatValue;
+                    count = 1;
+                }
+                if (z == YARNVOXEL_CHUNK_WIDTH-1 && x == YARNVOXEL_CHUNK_WIDTH -1 && y == 0) {
+                    handle_serialization_count(hint_is_count, count, value, floatValue);
+                }
+                // END SERIALIZATION SECTION
+
                 //if (YarnVoxel::get_singleton()->is_debugging_chunk && (z != 0)) continue;
                 int corner_index = 0;
                 uint8_t relevant_byte = 0;
@@ -150,8 +263,10 @@ void YVoxelChunk::generate() {
                 }
                 MarchCube(Vector3i(x, y, z),GetCubeConfiguration(),relevant_byte, cube[0]->health,debugging_config);
             }
+        }
+    }
 
-    SurfaceTool *surface_tool = memnew(SurfaceTool);
+    Ref<SurfaceTool> surface_tool = Ref<SurfaceTool>(memnew(SurfaceTool));
     surface_tool->begin(Mesh::PRIMITIVE_TRIANGLES);
 
     set_mesh(memnew(ArrayMesh));
@@ -233,15 +348,23 @@ void YVoxelChunk::generate() {
 
         auto mesharray = surface_tool->commit();
         auto array_index_length = mesharray->surface_get_array_index_len(0);
+        mesharray->set_meta(SNAME("_skip_save_"), true);
         set_mesh(mesharray);
         Ref<ConcavePolygonShape3D> shape;
         shape = get_mesh()->create_trimesh_shape();
+        shape->set_meta(SNAME("_skip_save_"), true);
         collision_shape->set_shape(shape);
         set_name(vformat("Chunk: %s tris: %s",chunk_number,array_index_length));
         static_body->set_name(vformat("StaticBody3d %s",get_name()));
+        if (static_body->get_owner() == nullptr) {
+            static_body->set_owner(get_owner());
+        }
+        if (collision_shape->get_owner() == nullptr) {
+            collision_shape->set_owner(get_owner());
+        }
         //print_line("Generated ",get_name());
     } else {
-        //print_line("Chunk number ",chunk_number," didn't have any triangles to generate");
+        print_line("Chunk number ",chunk_number," didn't have any triangles to generate " , get_instance_id());
     }
 
     emit_signal(completed_generation,chunk_number);
@@ -262,6 +385,10 @@ void YVoxelChunk::generate() {
             //print_line("chunk ",chunk_number," grass count ",grass_count," visible count ",grass_multimesh->get_multimesh()->get_visible_instance_count());
         }
     }
+
+    if (Engine::get_singleton()->is_editor_hint()) {
+        notify_property_list_changed();
+    }
 }
 
 void YVoxelChunk::populate_terrain(float height = 8) {
@@ -273,12 +400,24 @@ void YVoxelChunk::populate_terrain(float height = 8) {
                 const auto thisHeight = yvm->perlin_noise(static_cast<float>(x) / 16 * 1.5 + 0.001, static_cast<float>(z) / 16 * 1.5f + 0.001f);
 
                 // Set the value of this point in the terrainMap.
-                points[x][y][z] = YarnVoxelData::YVPointValue(1,static_cast<float>(y) - thisHeight);
+                points[x][y][z] = YarnVoxelData::YVPointValue(1,floatToInt16(static_cast<float>(y) - thisHeight));
             }
     yvm->set_dirty_chunk(chunk_number);
 }
 
+void YVoxelChunk::test_serialization() {
+    if(!has_registered_chunk_number) {
+        set_chunk_number(chunk_number);
+    }
+    serialize_to_data();
+    deserialize_from_data();
+    YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number);
+}
+
 void YVoxelChunk::populate_chunk_3d() {
+    if(!has_registered_chunk_number) {
+        set_chunk_number(chunk_number);
+    }
     //TIMING!
     const auto start = std::chrono::high_resolution_clock::now();
     const auto yvm = YarnVoxel::get_singleton();
@@ -289,7 +428,7 @@ void YVoxelChunk::populate_chunk_3d() {
                 const auto thisHeight = yvm->perlin_noise_3d(static_cast<float>(x) / 16 * 1.5 + 0.001, static_cast<float>(y) / 16 * 1.5f + 0.001f, static_cast<float>(z) / 16 * 1.5f + 0.001f);
 
                 // Set the value of this point in the terrainMap.
-                points[x][y][z] = YarnVoxelData::YVPointValue(1,thisHeight);
+                points[x][y][z] = YarnVoxelData::YVPointValue(1,floatToInt16(thisHeight));
             }
 
     constexpr float underSlopeForStone = -60, aboveSlopeForStone = 60;
@@ -314,7 +453,7 @@ void YVoxelChunk::populate_chunk_3d() {
     // Calculate the duration in microseconds
     const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
     // Print the duration
-    //print_line("Time taken by populating 3d terrain: ", duration.count(),"ms");
+    print_line("Time taken by populating 3d terrain: ", duration.count(),"ms");
     yvm->set_dirty_chunk(chunk_number);
 }
 
@@ -399,8 +538,8 @@ void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desired
             Vector3 vert2 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][1]];
 
             // Get the terrain values at either end of our current edge from the cube array created above.
-            const float vert1Sample = cube[YarnVoxelData::EdgeIndexes[indice][0]]->floatValue;
-            const float vert2Sample = cube[YarnVoxelData::EdgeIndexes[indice][1]]->floatValue;
+            const float vert1Sample = int16ToFloat(cube[YarnVoxelData::EdgeIndexes[indice][0]]->floatValue);
+            const float vert2Sample = int16ToFloat(cube[YarnVoxelData::EdgeIndexes[indice][1]]->floatValue);
 
             // Calculate the difference between the terrain values.
             float difference = vert2Sample - vert1Sample;
@@ -491,42 +630,124 @@ int YVoxelChunk::GetCubeConfiguration() {
 
 void YVoxelChunk::_notification(int p_what) {
     switch (p_what) {
-        // case NOTIFICATION_ENTER_TREE: {
-        // } break;
+        case NOTIFICATION_ENTER_TREE: {
+        } break;
         // case NOTIFICATION_ENTER_WORLD: {
         // } break;
         case NOTIFICATION_EXIT_TREE: {
             YarnVoxel::yvchunks.erase(chunk_number);
             break;
         }
-        case NOTIFICATION_READY: {
-            add_child(static_body);
-            static_body->add_child(collision_shape);
-            static_body->set_position(YARNVOXEL_VECTOR3_ZERO);
-            collision_shape->set_position(YARNVOXEL_VECTOR3_ZERO);
-            if (generate_grass && grass_multimesh == nullptr) {
-                grass_multimesh = memnew(MultiMeshInstance3D);
-                add_child(grass_multimesh);
-                grass_multimesh->set_name("GrassMultiMesh");
-                Ref<MultiMesh> multimesh = memnew(MultiMesh);
-                multimesh->set_transform_format(MultiMesh::TRANSFORM_3D);
-                multimesh->set_use_colors(false);
-                multimesh->set_instance_count(multimesh_instance_count);
-                multimesh->set_mesh(YarnVoxel::get_singleton()->grass_mesh);
-                grass_multimesh->set_multimesh(multimesh);
-                grass_multimesh->set_position(YARNVOXEL_VECTOR3_ZERO);
+		case NOTIFICATION_PARENTED: {
+            if (Engine::get_singleton()->is_editor_hint()) {
+                //print_line("Parented");
+                if (get_owner() != nullptr) {
+                    if (static_body != nullptr) {
+                        static_body->set_owner(get_owner());
+                    }
+                    if (grass_multimesh != nullptr) {
+                        grass_multimesh->set_owner(get_owner());
+                    }
+                    if (collision_shape != nullptr) {
+                        collision_shape->set_owner(get_owner());
+                    }
+                }
             }
+        }
+        case NOTIFICATION_READY: {
+            do_ready();
         } break;
         case NOTIFICATION_PROCESS: {
-            const auto yv = YarnVoxel::get_singleton();
-            if(yv->handle_dirty_chunks()) {
-                set_process(false);
-            }
+            do_process();
         } break;
         default:
             break;
     }
 }
+
+
+void YVoxelChunk::do_ready() {
+    if (has_done_ready) {
+        return;
+    }
+    if (Engine::get_singleton()->is_editor_hint()) {
+        if (YarnVoxel::get_singleton()->get_main_node() == nullptr) {
+            YarnVoxel::get_singleton()->set_main_node(Object::cast_to<Node3D>(get_parent()));
+        }
+    }
+    if (get_child_count() > 0) {
+        for (int i = 0; i < get_child_count(); ++i) {
+            if (get_child(i)->is_class("StaticBody3D")) {
+                static_body = Object::cast_to<StaticBody3D>(get_child(i));
+            } else if (get_child(i)->is_class("CollisionShape3D")){
+                collision_shape = Object::cast_to<CollisionShape3D>(get_child(i));
+            } else if (get_child(i)->is_class("MultiMeshInstance3D")){
+                grass_multimesh = Object::cast_to<MultiMeshInstance3D>(get_child(i));
+            }
+        }
+    }
+    if (static_body == nullptr) {
+        static_body = memnew(StaticBody3D);
+        static_body->set_meta(SNAME("_skip_save_"), true);
+        add_child(static_body);
+        if (Engine::get_singleton()->is_editor_hint()) {
+            if (get_owner() != nullptr) {
+                static_body->set_owner(get_owner());
+            } else {
+                static_body->set_owner(SceneTree::get_singleton()->get_current_scene());
+            }
+        }
+        static_body->set_position(YARNVOXEL_VECTOR3_ZERO);
+    } else if (static_body->get_child_count() > 0) {
+        for (int i = 0; i < static_body->get_child_count(); ++i) {
+            if (static_body->get_child(i)->is_class("CollisionShape3D")){
+                collision_shape = Object::cast_to<CollisionShape3D>(static_body->get_child(i));
+                collision_shape->set_meta(SNAME("_skip_save_"), true);
+            }
+        }
+    }
+    if (static_body != nullptr && collision_shape == nullptr) {
+        collision_shape = memnew(CollisionShape3D);
+        static_body->add_child(collision_shape);
+        if (Engine::get_singleton()->is_editor_hint()) {
+            collision_shape->set_owner(static_body->get_owner());
+        }
+        collision_shape->set_position(YARNVOXEL_VECTOR3_ZERO);
+    }
+    if (generate_grass && grass_multimesh == nullptr) {
+        grass_multimesh = memnew(MultiMeshInstance3D);
+        add_child(grass_multimesh);
+        if (Engine::get_singleton()->is_editor_hint()) {
+            grass_multimesh->set_owner(SceneTree::get_singleton()->get_current_scene());
+        }
+        grass_multimesh->set_name("GrassMultiMesh");
+        grass_multimesh->set_meta(SNAME("_skip_save_"), true);
+        Ref<MultiMesh> multimesh = memnew(MultiMesh);
+        multimesh->set_meta(SNAME("_skip_save_"), true);
+        multimesh->set_transform_format(MultiMesh::TRANSFORM_3D);
+        multimesh->set_use_colors(false);
+        multimesh->set_instance_count(multimesh_instance_count);
+        multimesh->set_mesh(YarnVoxel::get_singleton()->grass_mesh);
+        grass_multimesh->set_multimesh(multimesh);
+        grass_multimesh->set_position(YARNVOXEL_VECTOR3_ZERO);
+    }
+   // print_line("Static body is nullptr?",static_body!=nullptr);
+    if (static_body!= nullptr) {
+   //     print_line("My owner ",get_owner()," static body owner ",static_body->get_owner());
+    }
+    has_done_ready=true;
+}
+void YVoxelChunk::do_process() {
+    const auto yv = YarnVoxel::get_singleton();
+    if(!has_done_ready) {
+        do_ready();
+    }
+    if(yv->handle_dirty_chunks()) {
+        set_process(false);
+    }
+}
+
+
 
 bool YVoxelChunk::is_point_position_in_range_without_neighbours(int x, int y, int z) {
     return (x >= 0 && x < YARNVOXEL_CHUNK_WIDTH && y >= 0 && y < YARNVOXEL_CHUNK_HEIGHT && z >= 0 && z  < YARNVOXEL_CHUNK_WIDTH);
@@ -555,8 +776,28 @@ void YVoxelChunk::_bind_methods() {
     ClassDB::bind_method(D_METHOD("populate_terrain","height"), &YVoxelChunk::populate_terrain,DEFVAL(8));
     ClassDB::bind_method(D_METHOD("populate_chunk_3d"), &YVoxelChunk::populate_chunk_3d);
 
+    ClassDB::bind_method(D_METHOD("get_data"), &YVoxelChunk::get_data);
+    ClassDB::bind_method(D_METHOD("set_data","data"), &YVoxelChunk::set_data);
+    ADD_PROPERTY(PropertyInfo(Variant::PACKED_BYTE_ARRAY, "__data__", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_INTERNAL), "set_data", "get_data");
+
     ADD_PROPERTY(PropertyInfo(Variant::VECTOR3I, "chunk_number"), "set_chunk_number", "get_chunk_number");
     ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "bottom_corner_world_pos"), "set_bottom_corner_world_pos", "get_bottom_corner_world_pos");
+}
+
+void YVoxelChunk::set_chunk_number(Vector3i v) {
+        if (chunk_number != v || !has_registered_chunk_number) {
+            if (YarnVoxel::get_singleton() != nullptr) {
+                YVoxelChunk* find_chunk = nullptr;
+                if(YarnVoxel::get_singleton()->try_get_chunk(chunk_number,find_chunk) && find_chunk == this) {
+                    YarnVoxel::get_singleton()->yvchunks.erase(chunk_number);
+                }
+                YarnVoxel::get_singleton()->yvchunks[v] = this;
+                has_registered_chunk_number=true;
+                set_bottom_corner_world_pos(YarnVoxel::get_singleton()->GetBottomCornerForChunkInNumber(chunk_number));
+                set_global_position(bottom_corner_world_pos);
+            }
+            chunk_number = v;
+        }
 }
 
 Vector3 YVoxelChunk::get_world_pos_from_point_number(Vector3i pointNumber) const {

@@ -48,9 +48,11 @@ class YVoxelChunkEditorButtons : public Control {
 	GDCLASS(YVoxelChunkEditorButtons, Control)
 
 	YVoxelChunk* _yvoxelchunk;
-	static const int PREVIEW_HEIGHT = 32;
+	static const int PREVIEW_HEIGHT = 78;
 	static const int PADDING_PREVIEW_INFO = 2;
 	Button *_populate_terrain_button = nullptr;
+	Button *_test_serialization_terrain_button = nullptr;
+	Button *_test_float_stuff_button = nullptr;
 	// Button *_3d_space_switch = nullptr;
 
 public:
@@ -63,10 +65,48 @@ public:
 		_populate_terrain_button->set_offset(SIDE_TOP, PADDING_PREVIEW_INFO * 5);
 		_populate_terrain_button->connect("pressed", callable_mp(this, &YVoxelChunkEditorButtons::_on_populate_chunk_button_pressed));
 		add_child(_populate_terrain_button);
+
+		_test_serialization_terrain_button = memnew(Button);
+		_test_serialization_terrain_button->set_text(TTR("Test Serialization Chunk"));
+		_test_serialization_terrain_button->set_offset(SIDE_LEFT, PADDING_PREVIEW_INFO);
+		_test_serialization_terrain_button->set_offset(SIDE_TOP, PADDING_PREVIEW_INFO * 30);
+		_test_serialization_terrain_button->connect("pressed", callable_mp(this, &YVoxelChunkEditorButtons::_on_test_serialize_chunk_button_pressed));
+		add_child(_test_serialization_terrain_button);
+
+		_test_float_stuff_button = memnew(Button);
+		_test_float_stuff_button->set_text(TTR("Test Float Stuff"));
+		_test_float_stuff_button->set_offset(SIDE_LEFT, PADDING_PREVIEW_INFO+ 145);
+		_test_float_stuff_button->set_offset(SIDE_TOP, PADDING_PREVIEW_INFO * 30);
+		_test_float_stuff_button->connect("pressed", callable_mp(this, &YVoxelChunkEditorButtons::_on_test_float_stuff));
+		add_child(_test_float_stuff_button);
+	}
+
+	void _on_test_float_stuff() {
+		// print_line("0.5 ",_yvoxelchunk->floatToInt16(0.5f)," ", _yvoxelchunk->int16ToFloat(_yvoxelchunk->floatToInt16(0.5f)));
+		// print_line("1.0 ",_yvoxelchunk->floatToInt16(1.0f)," ", _yvoxelchunk->int16ToFloat(_yvoxelchunk->floatToInt16(1.0f)));
+		// print_line("-1.0 ",_yvoxelchunk->floatToInt16(-1.0f)," ", _yvoxelchunk->int16ToFloat(_yvoxelchunk->floatToInt16(-1.0f)));
+
+		int16_t floatconverted = floatToInt16(-0.00824850890785f);
+		uint8_t byte_1 = static_cast<uint8_t>(floatconverted & 0xFF);
+		uint8_t byte_2 = static_cast<uint8_t>((floatconverted >> 8) & 0xFF);
+		auto actual_float_value = int16ToFloat(static_cast<int16_t>(byte_1 | (byte_2 << 8)));
+		print_line("-0.00824850890785 to byte and back ",actual_float_value," int16 ",floatconverted," byte 1 ",byte_1," byte 2 ",byte_2);
+		byte_1 = 120;
+		byte_2 = 255;
+		actual_float_value = int16ToFloat(static_cast<int16_t>(byte_1 | (byte_2 << 8)));
+		print_line("in theory this is -0.00824850890785 to byte and back ",actual_float_value," int16 ",floatconverted," byte 1 ",byte_1," byte 2 ",byte_2);
 	}
 
 	void _on_populate_chunk_button_pressed() {
+		print_line("Calling test serialize on node ",_yvoxelchunk->get_instance_id());
 		_yvoxelchunk->populate_chunk_3d();
+		print_line(static_cast<int>(YarnVoxel::get_singleton()->yvchunks.size()) ," has main node? ",YarnVoxel::get_singleton()->get_main_node()->get_name());
+	}
+
+	void _on_test_serialize_chunk_button_pressed() {
+		print_line("Calling populate on node ",_yvoxelchunk->get_instance_id());
+		_yvoxelchunk->test_serialization();
+		print_line("serialized buffer size ",_yvoxelchunk->data.size());
 	}
 
 	void set_yvoxelchunk(YVoxelChunk* p_yvoxelchunk) {

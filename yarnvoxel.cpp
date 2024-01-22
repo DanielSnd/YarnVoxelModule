@@ -2,6 +2,7 @@
 
 #include "yarnvoxel.h"
 #include "constants.h"
+#include "core/config/project_settings.h"
 
 YarnVoxel* YarnVoxel::singleton;
 HashMap<Vector3i, YVoxelChunk*> YarnVoxel::yvchunks;
@@ -66,7 +67,7 @@ Vector3i YarnVoxel::FindPointNumberFromPosition(Vector3 pos) {
 }
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
-float YarnVoxel::FindFloatValueForPos(Vector3 pos) {
+int16_t YarnVoxel::FindFloatValueForPos(Vector3 pos) {
 	const Vector3i chunkNumber = FindChunkNumberFromPosition(pos);
 	const auto ic = get_chunk(chunkNumber);
 	if(ic != nullptr){
@@ -75,7 +76,7 @@ float YarnVoxel::FindFloatValueForPos(Vector3 pos) {
 			return ic->points[blockNumber.x][blockNumber.y][blockNumber.z].floatValue;
 		}
 	}
-	return 1.0f;
+	return INT16_MAX;
 }
 
 int YarnVoxel::FindBlockTypeForPos(Vector3 pos) {
@@ -135,8 +136,15 @@ YVoxelChunk* YarnVoxel::get_chunk(Vector3i chunkPosition) {
 		YVoxelChunk* chunk = memnew(YVoxelChunk);
 		chunk->generate_grass = generate_grass;
 		chunk->set_name(vformat("VoxelChunk %s",chunkPosition));
-		get_main_node()->add_child(chunk);
+		auto parent_node = get_main_node();
+		if (parent_node == nullptr) {
+			ERR_PRINT("[YarnVoxel] Main node not found");
+		} else {
+			parent_node->add_child(chunk);
+		}
+		chunk->set_chunk_number(chunkPosition);
 		chunk->initialize(chunkPosition);
+		chunk->has_registered_chunk_number = true;
 		yvchunks[chunkPosition] = chunk;
 		return chunk;
 	}
@@ -267,7 +275,7 @@ void YarnVoxel::changeFloatAtPosition(Vector3i position, float newFloat, uint8_t
 			if (newFloat >= 0.999999f) {
 				ic->points[blockNumber.x][blockNumber.y][blockNumber.z] = YarnVoxelData::YVPointValue(); // Assuming this is default
 			} else {
-				ic->points[blockNumber.x][blockNumber.y][blockNumber.z] = YarnVoxelData::YVPointValue(newBlockType, newFloat,health);
+				ic->points[blockNumber.x][blockNumber.y][blockNumber.z] = YarnVoxelData::YVPointValue(newBlockType, floatToInt16(newFloat),health);
 			}
 			set_dirty_chunk(chunkNumber);
 			if(IsPointNumberInBoundary(blockNumber)) {
@@ -314,6 +322,9 @@ void YarnVoxel::chunk_generated (Vector3i chunk_completed) {
 
 bool YarnVoxel::handle_dirty_chunks() {
 	//print_line("Handle dirty chunks called, is generating? ",is_generating," dirty queue size? ",DirtyChunksQueue.size());
+	if (!material.is_valid()) {
+		material = Ref<Material>((Object::cast_to<Material>(memnew(Material))));
+	}
 	if(is_generating) {
 		return false;
 	}
@@ -339,7 +350,11 @@ void YarnVoxel::set_dirty_chunk(Vector3i chunkNumber) {
 	if(!DirtyChunksQueue.has(chunkNumber)) {
 		DirtyChunksQueue.append(chunkNumber);
 		const auto ic = get_chunk(chunkNumber);
-		ic->set_process(true);
+		if (!Engine::get_singleton()->is_editor_hint()) {
+			ic->set_process(true);
+		} else {
+			ic->do_process();
+		}
 	}
 }
 
@@ -384,13 +399,24 @@ void YarnVoxel::set_debugging_config(int val) {
 }
 
 Node3D* YarnVoxel::get_main_node() {
-	if (Engine::get_singleton()->is_editor_hint()) {
-		return nullptr;
-	}
 	if (main_node_pointer != nullptr) {
 		return main_node_pointer;
 	}
+	if (Engine::get_singleton()->is_editor_hint()) {
+		if(yvchunks.size()>0) {
+			main_node_pointer = Object::cast_to<Node3D>(yvchunks.last()->value->get_parent());
+		} else {
+			if (SceneTree::get_singleton() != nullptr) {
+				main_node_pointer = Object::cast_to<Node3D>(SceneTree::get_singleton()->get_current_scene());
+			}
+		}
+		return main_node_pointer;
+	}
 	MainLoop *ml = OS::get_singleton()->get_main_loop();
+	if (ml == nullptr) {
+		ERR_PRINT("MAIN LOOP NOT FOUND");
+		return nullptr;
+	}
 	auto const *sml = Object::cast_to<SceneTree>(ml);
 	Node *current_scene = sml->get_current_scene();
 	main_node_pointer = memnew(Node3D);
@@ -429,6 +455,11 @@ YarnVoxel::YarnVoxel() {
 	// grass_material = nullptr;
 	generate_grass=false;
 	water_level = 2.0;
+	default_material_path = GLOBAL_DEF_RST(PropertyInfo(Variant::STRING, "YarnVoxel/general/default_material", PROPERTY_HINT_FILE, "*.tres,*.res", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED), "");
+	print_line("default_material_path ",default_material_path);
+	if (!default_material_path.is_empty() && default_material_path.is_resource_file()) {
+		material = ResourceLoader::load(default_material_path, "Material");
+	}
 }
 
 YarnVoxel::~YarnVoxel() {

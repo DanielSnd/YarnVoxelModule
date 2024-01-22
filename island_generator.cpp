@@ -298,7 +298,7 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
                         density = Math::lerp(aboveDensity, density, 0.165f);
                     }
                     if(currentIslandChunk != nullptr) {
-                        currentIslandChunk->points[pointsPosition.x][pointsPosition.y][pointsPosition.z] = YarnVoxelData::YVPointValue((density >0.55f && yAboveWaterLevelPlusSand ? static_cast<uint8_t>(0) :desiredByte), density);
+                        currentIslandChunk->points[pointsPosition.x][pointsPosition.y][pointsPosition.z] = YarnVoxelData::YVPointValue((density >0.55f && yAboveWaterLevelPlusSand ? static_cast<uint8_t>(0) :desiredByte), floatToInt16(density));
                     }
                     if (y > highestYWithBlock) highestYWithBlock = y;
                 }
@@ -389,7 +389,7 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
                 if (currentIslandChunk != nullptr) {
                     auto pointsPosition = YarnVoxel::GetPointNumberFromPosition(newPos);
                     auto yvpoint = currentIslandChunk->points[pointsPosition.x][pointsPosition.y][pointsPosition.z];
-                    if (yvpoint.floatValue > 0.001f) continue;
+                    if (yvpoint.floatValue > ZERO_SHORT) continue;
                     Vector3i amountTypeSurrounding = FindBiggestSurroundingIncidence(pointsPosition, currentIslandChunk, false);
                     if(auto foundBestBlockType = static_cast<uint8_t>(amountTypeSurrounding.y); amountTypeSurrounding.x >= 3 && foundBestBlockType != 0 && static_cast<uint8_t>(foundBestBlockType)!=yvpoint.byteValue) {
                         currentIslandChunk->points[pointsPosition.x][pointsPosition.y][pointsPosition.z] = YarnVoxelData::YVPointValue(foundBestBlockType, yvpoint.floatValue);
@@ -497,7 +497,7 @@ Vector3i IslandGenerator::FindBiggestSurroundingIncidence(Vector3i pointNumber, 
             // if( calculateAirDirection)
             //     print_line("point ",pointNumber," has ",(foundInfo != nullptr));
             if (foundInfo != nullptr) {
-                if (foundInfo->floatValue < -0.005f) {
+                if (foundInfo->floatValue < BIT_LESS_THAN_ZERO_SHORT) {
                     const auto foundbType = foundInfo->byteValue;
                     if (foundbType == YarnVoxel::BlockType::STONE) {
                         stoneCount++;

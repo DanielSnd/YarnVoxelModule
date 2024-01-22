@@ -16,6 +16,7 @@
 #include "core/math/color.h"
 #include "scene/main/node.h"
 // #include "scene/3d/visual_instance_3d.h"
+#include "yarnvoxel.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/visual_instance_3d.h"
 #include "servers/rendering_server.h"
@@ -27,20 +28,22 @@
 // #include "scene/main/node.h"
 
 class MeshInstance3D;
+class YarnVoxel;
 
 class YVoxelChunk : public MeshInstance3D {
     GDCLASS(YVoxelChunk, MeshInstance3D);
 
-    CollisionShape3D *collision_shape = memnew(CollisionShape3D);
-    StaticBody3D *static_body = memnew(StaticBody3D);
+    CollisionShape3D *collision_shape = nullptr;
+    StaticBody3D *static_body = nullptr;
     MultiMeshInstance3D *grass_multimesh = nullptr;
 
 protected:
     void _notification(int p_what);
-
     static void _bind_methods();
 
 public:
+    bool has_done_ready = false;
+    bool has_registered_chunk_number = false;
 	StringName completed_generation;
     Vector<YarnVoxelData::YVTriangleData> mesh_triangles = {};
     Vector<YarnVoxelData::YVPropTriangleData> possible_prop_places = {};
@@ -48,17 +51,43 @@ public:
 
     Vector3i chunk_number;
     Vector3i get_chunk_number() {return chunk_number;}
-    void set_chunk_number(Vector3i v) {chunk_number = v;}
+    void set_chunk_number(Vector3i v);
+
+    void do_ready();
+    void do_process();
+
+    bool compare_float_values_sameish(int16_t f1, int16_t f2);
+
+    void do_work(uint8_t hint_is_count, uint16_t count, uint8_t value, float floatValue);
+
+    void serialize_to_data();
+
+    void handle_serialization_count(uint8_t hint_is_count, uint16_t count, uint8_t value, int16_t floatValue);
+
+    void deserialize_from_data();
 
     Vector3 bottom_corner_world_pos;
     Vector3 get_bottom_corner_world_pos() {return bottom_corner_world_pos;}
-    void set_bottom_corner_world_pos(Vector3 v) {bottom_corner_world_pos = v;}
+    void set_bottom_corner_world_pos(Vector3 v) {
+        bottom_corner_world_pos = v;
+    }
 
     YarnVoxelData::YVPointValue points[YARNVOXEL_CHUNK_WIDTH + 1][YARNVOXEL_CHUNK_HEIGHT+1][YARNVOXEL_CHUNK_WIDTH+1] = {{{}}};
 
     bool has_neighbour_chunks[2][2][2] = {false};
     YVoxelChunk* neighbour_chunks[2][2][2] = {nullptr};
 
+    Vector<uint8_t> data;
+    void set_data (const Vector<uint8_t> &val) {
+        print_line("Set data is being called");
+        data = val;
+        deserialize_from_data();
+    }
+    Vector<uint8_t> get_data () {
+        //print_line("Get data is being called");
+        //serialize_to_data();
+        return data;
+    }
     Vector3i right = Vector3i(1, 0, 0);
     Vector3i up = Vector3i(0, 1, 0);
     Vector3i forward = Vector3i(0, 0, 1);
@@ -82,6 +111,8 @@ public:
     void ClearMeshOutputData();
 
     void populate_terrain(float height);
+
+    void test_serialization();
 
     void populate_chunk_3d();
 
