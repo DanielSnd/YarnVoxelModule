@@ -15,7 +15,7 @@
 
 #include "core/math/vector2i.h"
 #include "editor/editor_inspector.h"
-#include "editor/editor_scale.h"
+#include "editor/themes/editor_scale.h"
 #include "scene/gui/button.h"
 #include "scene/gui/texture_rect.h"
 

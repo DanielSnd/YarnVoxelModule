@@ -223,7 +223,6 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
     int lastXAboveWater = 0;
     int lastZAboveWater = 0;
     int highestYWithBlock = -99;
-
     // Assuming map_size is a struct or class with x and y members
     // If it's not, replace it with the appropriate type.
 
@@ -265,6 +264,7 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
                     previousChunkNumberCached = chunkNumber;
                     if(!used_chunks.has(chunkNumber)) {
                         used_chunks.append(chunkNumber);
+                        currentIslandChunk->clear_all_points();
                     }
                 }
 

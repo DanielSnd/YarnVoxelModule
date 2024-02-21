@@ -4,6 +4,10 @@
 #include "constants.h"
 #include "core/config/project_settings.h"
 
+#ifdef TOOLS_ENABLED
+#include "editor/editor_interface.h"
+#endif
+
 YarnVoxel* YarnVoxel::singleton;
 HashMap<Vector3i, YVoxelChunk*> YarnVoxel::yvchunks;
 Ref<Material> material;
@@ -141,6 +145,17 @@ YVoxelChunk* YarnVoxel::get_chunk(Vector3i chunkPosition) {
 			ERR_PRINT("[YarnVoxel] Main node not found");
 		} else {
 			parent_node->add_child(chunk);
+
+#ifdef TOOLS_ENABLED
+			if(Engine::get_singleton()->is_editor_hint()) {
+				// print_line("Add owner to chunk. Current owner? ",chunk->get_owner()," new owner if scenetree ",SceneTree::get_singleton()->get_current_scene());
+				// chunk->set_owner(SceneTree::get_singleton()->get_current_scene());
+				//print_line("EditorInterface::get_singleton()->get_edited_scene_root() ",EditorInterface::get_singleton()->get_edited_scene_root());
+				//if(Engine::get_singleton()->is_editor_hint()) {
+					chunk->set_owner(EditorInterface::get_singleton()->get_edited_scene_root());
+				//}
+			}
+#endif
 		}
 		chunk->set_chunk_number(chunkPosition);
 		chunk->initialize(chunkPosition);
@@ -174,7 +189,10 @@ void YarnVoxel::set_material(const Ref<Material> &p_material) {
 	material = p_material;
 }
 
-Ref<Material> YarnVoxel::get_material() const {
+Ref<Material> YarnVoxel::get_material() {
+	if(!material.is_valid() || material.is_null() && !default_material_path.is_empty() && default_material_path.is_resource_file()) {
+			material = ResourceLoader::load(default_material_path, "Material");
+	}
 	return material;
 }
 
@@ -206,7 +224,7 @@ void YarnVoxel::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_material", "material"), &YarnVoxel::set_material);
 	ClassDB::bind_method(D_METHOD("get_material"), &YarnVoxel::get_material);
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "material", PROPERTY_HINT_RESOURCE_TYPE, "SpatialMaterial,StandardMaterial3D,ShaderMaterial"), "set_material", "get_material");
+	//ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "material", PROPERTY_HINT_RESOURCE_TYPE, "SpatialMaterial,StandardMaterial3D,ShaderMaterial"), "set_material", "get_material");
 
 	ClassDB::bind_method(D_METHOD("set_grass_material", "material"), &YarnVoxel::set_grass_material);
 	ClassDB::bind_method(D_METHOD("get_grass_material"), &YarnVoxel::get_grass_material);
@@ -245,6 +263,8 @@ void YarnVoxel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_generate_grass","status"), &YarnVoxel::set_generate_grass);
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL,"generate_grass",PROPERTY_HINT_NONE),"set_generate_grass","get_generate_grass");
 
+	ClassDB::bind_method(D_METHOD("regenerate_all_chunks"), &YarnVoxel::regenerate_all_chunks);
+	ClassDB::bind_method(D_METHOD("get_is_generating"), &YarnVoxel::get_is_generating);
 	ClassDB::bind_method(D_METHOD("get_chunks"), &YarnVoxel::get_chunks_from_gd_script);
 	ClassDB::bind_method(D_METHOD("try_get_chunk","chunk_number"), &YarnVoxel::get_chunk_from_gdscript);
 
@@ -322,9 +342,6 @@ void YarnVoxel::chunk_generated (Vector3i chunk_completed) {
 
 bool YarnVoxel::handle_dirty_chunks() {
 	//print_line("Handle dirty chunks called, is generating? ",is_generating," dirty queue size? ",DirtyChunksQueue.size());
-	if (!material.is_valid()) {
-		material = Ref<Material>((Object::cast_to<Material>(memnew(Material))));
-	}
 	if(is_generating) {
 		return false;
 	}
@@ -343,13 +360,18 @@ bool YarnVoxel::handle_dirty_chunks() {
 	return false;
 }
 
-void YarnVoxel::set_dirty_chunk(Vector3i chunkNumber) {
-	if (is_debugging_chunk && chunkNumber != debuggin_chunk) {
-		return;
+void YarnVoxel::regenerate_all_chunks() {
+	DirtyChunksQueue.clear();
+	for (const KeyValue<Vector3i, YVoxelChunk*> &E : yvchunks) {
+		set_dirty_chunk(E.value->chunk_number);
 	}
+}
+
+void YarnVoxel::set_dirty_chunk(Vector3i chunkNumber) {
 	if(!DirtyChunksQueue.has(chunkNumber)) {
 		DirtyChunksQueue.append(chunkNumber);
 		const auto ic = get_chunk(chunkNumber);
+		//print_line("Setting dirty chunk ",chunkNumber ," ",ic);
 		if (!Engine::get_singleton()->is_editor_hint()) {
 			ic->set_process(true);
 		} else {
@@ -456,10 +478,8 @@ YarnVoxel::YarnVoxel() {
 	generate_grass=false;
 	water_level = 2.0;
 	default_material_path = GLOBAL_DEF_RST(PropertyInfo(Variant::STRING, "YarnVoxel/general/default_material", PROPERTY_HINT_FILE, "*.tres,*.res", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED), "");
-	print_line("default_material_path ",default_material_path);
-	if (!default_material_path.is_empty() && default_material_path.is_resource_file()) {
-		material = ResourceLoader::load(default_material_path, "Material");
-	}
+	//print_line("default_material_path ",default_material_path);
+	material = Ref<Material>();
 }
 
 YarnVoxel::~YarnVoxel() {

@@ -50,7 +50,6 @@ void initialize_yarnvoxel_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<IGE_Terrace>();
 	// Initialize your singleton.
 	YarnVoxelPtr = memnew(YarnVoxel);
-
 	// Bind your singleton.
 	Engine::get_singleton()->add_singleton(Engine::Singleton("YarnVoxel", YarnVoxel::get_singleton()));
 }
@@ -66,6 +65,9 @@ void uninitialize_yarnvoxel_module(ModuleInitializationLevel p_level) {
 	// automatically if there are no other references to it.
 	if (YarnVoxelPtr != nullptr && !(YarnVoxelPtr->material.is_null()) && YarnVoxelPtr->material.is_valid()) {
 		YarnVoxelPtr->material.unref();
+	}
+	if (YarnVoxelPtr != nullptr) {
+		memdelete(YarnVoxelPtr);
 	}
 	YarnVoxelPtr = nullptr;
 }

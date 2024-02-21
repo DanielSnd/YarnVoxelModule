@@ -41,6 +41,7 @@ protected:
 public:
 	static HashMap<Vector3i,YVoxelChunk *> yvchunks;
 	bool is_generating;
+	bool get_is_generating() const {return is_generating;}
 	bool is_debugging_chunk;
 	bool generate_grass{};
 	void set_generate_grass(bool status) {generate_grass = status;}
@@ -109,7 +110,7 @@ public:
 
 	void set_material(const Ref<Material> &p_material);
 
-	Ref<Material> get_material() const;
+	Ref<Material> get_material();
 
 	void changeFloatAtPosition(Vector3i position, float newFloat, uint8_t newBlockType, uint8_t health);
 
@@ -125,6 +126,7 @@ public:
 
 	bool handle_dirty_chunks();
 
+	void regenerate_all_chunks();
 	void set_dirty_chunk(Vector3i chunkNumber);
 	float perlin_noise (float x,float y);
 	float perlin_noise_3d (float x,float y, float z);

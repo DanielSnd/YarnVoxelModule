@@ -23,6 +23,7 @@
 #include "core/variant/variant.h"
 #include "core/math/vector2i.h"
 #include "core/math/vector3i.h"
+#include "core/variant/variant_utility.h"
 #include "scene/3d/multimesh_instance_3d.h"
 // #include "scene/3d/physics_body_3d.h"
 // #include "scene/main/node.h"
@@ -33,13 +34,18 @@ class YarnVoxel;
 class YVoxelChunk : public MeshInstance3D {
     GDCLASS(YVoxelChunk, MeshInstance3D);
 
-    CollisionShape3D *collision_shape = nullptr;
-    StaticBody3D *static_body = nullptr;
-    MultiMeshInstance3D *grass_multimesh = nullptr;
+    // CollisionShape3D *collision_shape = nullptr;
+    // StaticBody3D *static_body = nullptr;
+    // MultiMeshInstance3D *grass_multimesh = nullptr;
 
 protected:
     void _notification(int p_what);
     static void _bind_methods();
+    uint32_t collision_layer = 1;
+    uint32_t collision_mask = 1;
+    real_t collision_priority = 1.0;
+    Ref<ConcavePolygonShape3D> root_collision_shape;
+    RID root_collision_instance;
 
 public:
     bool has_done_ready = false;
@@ -51,10 +57,21 @@ public:
 
     Vector3i chunk_number;
     Vector3i get_chunk_number() {return chunk_number;}
+    void deferred_set_dirty();
     void set_chunk_number(Vector3i v);
 
     void do_ready();
     void do_process();
+
+    void set_collision_layer(uint32_t p_layer);
+
+    uint32_t get_collision_layer() const;
+
+    void set_collision_mask(uint32_t p_mask);
+
+    uint32_t get_collision_mask() const;
+
+    void set_collision_layer_value(int p_layer_number, bool p_value);
 
     bool compare_float_values_sameish(int16_t f1, int16_t f2);
 
@@ -66,20 +83,21 @@ public:
 
     void deserialize_from_data();
 
+    void clear_all_points();
+
     Vector3 bottom_corner_world_pos;
     Vector3 get_bottom_corner_world_pos() {return bottom_corner_world_pos;}
     void set_bottom_corner_world_pos(Vector3 v) {
         bottom_corner_world_pos = v;
     }
 
-    YarnVoxelData::YVPointValue points[YARNVOXEL_CHUNK_WIDTH + 1][YARNVOXEL_CHUNK_HEIGHT+1][YARNVOXEL_CHUNK_WIDTH+1] = {{{}}};
+    YarnVoxelData::YVPointValue points[YARNVOXEL_CHUNK_WIDTH + 1][YARNVOXEL_CHUNK_HEIGHT+1][YARNVOXEL_CHUNK_WIDTH+1];
 
     bool has_neighbour_chunks[2][2][2] = {false};
     YVoxelChunk* neighbour_chunks[2][2][2] = {nullptr};
 
     Vector<uint8_t> data;
     void set_data (const Vector<uint8_t> &val) {
-        print_line("Set data is being called");
         data = val;
         deserialize_from_data();
     }
@@ -141,8 +159,18 @@ public:
 
     void generate();
 
-
     bool is_point_position_in_range(int x, int y, int z);
+
+    bool get_collision_layer_value(int p_layer_number) const;
+
+    void set_collision_mask_value(int p_layer_number, bool p_value);
+
+    bool get_collision_mask_value(int p_layer_number) const;
+
+    void set_collision_priority(real_t p_priority);
+
+    real_t get_collision_priority() const;
+
     bool is_point_position_in_range_without_neighbours(int x, int y, int z);
 
     void MarchCube(Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health,uint8_t debugging_config);

@@ -5,7 +5,7 @@
 #include "island_gen_effect.h"
 
 void IslandGenEffect::_bind_methods() {
-
+    ADD_GROUP("Influence", "");
     ClassDB::bind_method(D_METHOD("get_enabled"), &IslandGenEffect::get_enabled);
     ClassDB::bind_method(D_METHOD("set_enabled", "value"), &IslandGenEffect::set_enabled);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "enabled"), "set_enabled", "get_enabled");
@@ -14,6 +14,7 @@ void IslandGenEffect::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_amount", "value"), &IslandGenEffect::set_amount);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "amount",PROPERTY_HINT_RANGE, "0,1.0,0.01"), "set_amount", "get_amount");
 
+    ADD_GROUP("Mask", "");
     ClassDB::bind_method(D_METHOD("get_use_mask"), &IslandGenEffect::get_use_mask);
     ClassDB::bind_method(D_METHOD("set_use_mask", "value"), &IslandGenEffect::set_use_mask);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_mask"), "set_use_mask", "get_use_mask");

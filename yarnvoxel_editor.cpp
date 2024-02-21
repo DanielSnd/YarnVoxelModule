@@ -3,7 +3,7 @@
 // #endif
 #include "yvoxelchunk.h"
 #include "editor/editor_inspector.h"
-#include "editor/editor_scale.h"
+#include "editor/themes/editor_scale.h"
 #include "scene/gui/button.h"
 #ifdef TOOLS_ENABLED
 
@@ -16,13 +16,11 @@ void YarnVoxelEditorPlugin::_notification(int p_what) {
     switch (p_what) {
         case NOTIFICATION_ENTER_TREE: {
             ProjectSettings &ps = *ProjectSettings::get_singleton();
-            add_setting(ps,
-                  vformat("%s/%s/%s", YARNVOXEL_SETTINGS_BASE_PATH, INITIALIZE_BASE_PATH, CELL_SIZE_OPTION),
-                  256,
-                  Variant::Type::INT
-                );
-
+        	add_setting(ps, vformat("%s/%s/%s", YARNVOXEL_SETTINGS_BASE_PATH, INITIALIZE_BASE_PATH, "enabled"),
+				  false, Variant::Type::BOOL, PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT,true);
             ps.get_singleton()->save();
+        	add_tool_menu_item("Enable voxel painting",callable_mp(this,&YarnVoxelEditorPlugin::enable_voxel_painting));
+        	set_input_event_forwarding_always_enabled();
         } break;
         case NOTIFICATION_EXIT_TREE: {
         } break;
@@ -41,6 +39,15 @@ PropertyHint p_hint, const String& p_hint_string, int p_usage, bool requires_res
 
 auto YarnVoxelEditorPlugin::_bind_methods() -> void {}
 
+void YarnVoxelEditorPlugin::enable_voxel_painting() {
+	remove_tool_menu_item("Enable voxel painting");
+	add_tool_menu_item("Disable voxel painting",callable_mp(this,&YarnVoxelEditorPlugin::disable_voxel_painting));
+}
+
+void YarnVoxelEditorPlugin::disable_voxel_painting() {
+	remove_tool_menu_item("Disable voxel painting");
+	add_tool_menu_item("Enable voxel painting",callable_mp(this,&YarnVoxelEditorPlugin::enable_voxel_painting));
+}
 
 /////////////////////////////////////////////////////////////////////////////////
 

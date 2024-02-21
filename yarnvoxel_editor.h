@@ -13,8 +13,7 @@ namespace godot {
 	    void _notification(int p_what);
         YarnVoxelEditorPlugin() = default;
         ~YarnVoxelEditorPlugin() = default;
-        static constexpr const char* INITIALIZE_BASE_PATH = "general";
-        static constexpr const char* CELL_SIZE_OPTION = "cell_size";
+        static constexpr const char* INITIALIZE_BASE_PATH = "settings";
 
     private:
         static void add_setting(
@@ -30,6 +29,10 @@ namespace godot {
 
     protected:
         static void _bind_methods();
+
+        void enable_voxel_painting();
+
+        void disable_voxel_painting();
     };
 
     class YVoxelChunkEditorPlugin : public EditorPlugin {

@@ -4,9 +4,12 @@
 #include <iostream>
 #include <chrono>
 #include "yvoxelchunk.h"
-
 #include "yarnvoxel.h"
-#include "core/variant/variant_utility.h"
+
+#ifdef TOOLS_ENABLED
+#include "editor/editor_interface.h"
+#endif
+
 //
 // void YVoxelChunk::add(int p_value) {
 //     count += p_value;
@@ -106,6 +109,7 @@ void YVoxelChunk::handle_serialization_count(uint8_t hint_is_count, uint16_t cou
 }
 
 void YVoxelChunk::deserialize_from_data() {
+    //print_line("Chunk number ",chunk_number," data size ",data.size());
     if (data.size() == 0) {
         WARN_PRINT("[YarnVoxel] Attempt to deserilaize data from an empty buffer when deserializing chunk");
         return;
@@ -134,17 +138,48 @@ void YVoxelChunk::deserialize_from_data() {
         for (uint16_t i = 0; i < count; ++i) {
             points[x][y][z].byteValue = value;
             points[x][y][z].floatValue = actual_float_value;
-            if (++x >= YARNVOXEL_CHUNK_WIDTH) { x = 0;
-                if (++z >= YARNVOXEL_CHUNK_WIDTH) { z = 0;
+            if (++z >= YARNVOXEL_CHUNK_WIDTH) { z = 0;
+                if (++x >= YARNVOXEL_CHUNK_WIDTH) { x = 0;
                     if (--y < 0) return;
                 }
             }
         }
     }
+}
 
+void YVoxelChunk::clear_all_points() {
+    for (int i = 0; i <= YARNVOXEL_CHUNK_WIDTH; ++i) {
+        for (int j = 0; j <= YARNVOXEL_CHUNK_HEIGHT; ++j) {
+            for (int k = 0; k <= YARNVOXEL_CHUNK_WIDTH; ++k) {
+                points[i][j][k] = YarnVoxelData::YVPointValue(); // Default constructor
+            }
+        }
+    }
+    data.clear();
 }
 
 void YVoxelChunk::generate() {
+    //print_line("Calling generate on ",chunk_number, " Editor hint: ",Engine::get_singleton()->is_editor_hint()," Is inside Tree: ", !is_inside_tree());
+#ifdef TOOLS_ENABLED
+    if(Engine::get_singleton()->is_editor_hint() && !is_inside_tree()) {
+        SceneTree::get_singleton()->connect(SNAME("process_frame"),callable_mp(this,&YVoxelChunk::generate),CONNECT_ONE_SHOT);
+        return;
+    }
+#endif
+    if(!root_collision_instance.is_valid()) {
+        if(!root_collision_shape.is_valid() || root_collision_shape.is_null())
+            root_collision_shape.instantiate();
+        root_collision_shape->set_meta(SNAME("_skip_save_"), true);
+        root_collision_instance = PhysicsServer3D::get_singleton()->body_create();
+        PhysicsServer3D::get_singleton()->body_set_mode(root_collision_instance, PhysicsServer3D::BODY_MODE_STATIC);
+        PhysicsServer3D::get_singleton()->body_set_state(root_collision_instance, PhysicsServer3D::BODY_STATE_TRANSFORM, get_global_transform());
+        PhysicsServer3D::get_singleton()->body_add_shape(root_collision_instance, root_collision_shape->get_rid());
+        PhysicsServer3D::get_singleton()->body_set_space(root_collision_instance, get_world_3d()->get_space());
+        PhysicsServer3D::get_singleton()->body_attach_object_instance_id(root_collision_instance, get_instance_id());
+        set_collision_layer(collision_layer);
+        set_collision_mask(collision_mask);
+        set_collision_priority(collision_priority);
+    }
     //TIMING!
     auto start = std::chrono::high_resolution_clock::now();
     water_level = YarnVoxel::get_singleton()->water_level;
@@ -271,11 +306,12 @@ void YVoxelChunk::generate() {
 
     set_mesh(memnew(ArrayMesh));
 
-    if (YarnVoxel::get_singleton()->material.is_valid()) {
+    Ref<Material> use_material = YarnVoxel::get_singleton()->get_material();
+    if (use_material.is_valid()) {
         if (get_surface_override_material_count() == 0) {
-            surface_override_materials.append(YarnVoxel::get_singleton()->material);
+            surface_override_materials.append(use_material);
         } else {
-            set_surface_override_material(0,YarnVoxel::get_singleton()->material);
+            set_surface_override_material(0,use_material);
         }
     }
     auto vertex_array = &surface_tool->get_vertex_array();
@@ -350,21 +386,12 @@ void YVoxelChunk::generate() {
         auto array_index_length = mesharray->surface_get_array_index_len(0);
         mesharray->set_meta(SNAME("_skip_save_"), true);
         set_mesh(mesharray);
-        Ref<ConcavePolygonShape3D> shape;
-        shape = get_mesh()->create_trimesh_shape();
-        shape->set_meta(SNAME("_skip_save_"), true);
-        collision_shape->set_shape(shape);
+        root_collision_shape->set_faces(get_mesh()->create_trimesh_shape()->get_faces());
+        root_collision_shape->set_meta(SNAME("_skip_save_"), true);
         set_name(vformat("Chunk: %s tris: %s",chunk_number,array_index_length));
-        static_body->set_name(vformat("StaticBody3d %s",get_name()));
-        if (static_body->get_owner() == nullptr) {
-            static_body->set_owner(get_owner());
-        }
-        if (collision_shape->get_owner() == nullptr) {
-            collision_shape->set_owner(get_owner());
-        }
         //print_line("Generated ",get_name());
     } else {
-        print_line("Chunk number ",chunk_number," didn't have any triangles to generate " , get_instance_id());
+        //print_line("Chunk number ",chunk_number," didn't have any triangles to generate " , get_instance_id());
     }
 
     emit_signal(completed_generation,chunk_number);
@@ -374,21 +401,24 @@ void YVoxelChunk::generate() {
     // Calculate the duration in microseconds
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
     // Print the duration
-    //print_line("Time taken by generation: ", duration.count(),"ms");
+    //print_line(get_name()," Time taken by generation: ", duration.count(),"ms");
     has_first_generated = true;
-    if(generate_grass && grass_multimesh != nullptr) {
-        grass_multimesh->get_multimesh()->set_visible_instance_count(grass_count);
-        if (grass_count == 0) {
-            grass_multimesh->set_visible(false);
-        } else {
-            grass_multimesh->set_visible(true);
-            //print_line("chunk ",chunk_number," grass count ",grass_count," visible count ",grass_multimesh->get_multimesh()->get_visible_instance_count());
-        }
-    }
-
+    //TODO: GRASS
+    // if(generate_grass && grass_multimesh != nullptr) {
+    //     grass_multimesh->get_multimesh()->set_visible_instance_count(grass_count);
+    //     if (grass_count == 0) {
+    //         grass_multimesh->set_visible(false);
+    //     } else {
+    //         grass_multimesh->set_visible(true);
+    //         //print_line("chunk ",chunk_number," grass count ",grass_count," visible count ",grass_multimesh->get_multimesh()->get_visible_instance_count());
+    //     }
+    // }
+#ifdef TOOLS_ENABLED
     if (Engine::get_singleton()->is_editor_hint()) {
         notify_property_list_changed();
     }
+#endif
+
 }
 
 void YVoxelChunk::populate_terrain(float height = 8) {
@@ -409,7 +439,7 @@ void YVoxelChunk::test_serialization() {
     if(!has_registered_chunk_number) {
         set_chunk_number(chunk_number);
     }
-    serialize_to_data();
+    //serialize_to_data();
     deserialize_from_data();
     YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number);
 }
@@ -453,7 +483,7 @@ void YVoxelChunk::populate_chunk_3d() {
     // Calculate the duration in microseconds
     const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
     // Print the duration
-    print_line("Time taken by populating 3d terrain: ", duration.count(),"ms");
+    //print_line("Time taken by populating 3d terrain: ", duration.count(),"ms");
     yvm->set_dirty_chunk(chunk_number);
 }
 
@@ -571,22 +601,23 @@ void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desired
                         if (triangleSlope < 48 && triangleSlope >= 0 && bottom_corner_world_pos.y + triangleVert1.y > water_level + 1.0f) {
                             auto propTriangle = YarnVoxelData::YVPropTriangleData(chunk_number, triangleVert1,triangleVert2,vertPosition, Vector2i(configIndex,trianglesCreated), desiredByte);
                             possible_prop_places.append(propTriangle);
-                            if (generate_grass && triangleSlope < 42 && propTriangle.desiredByte == 1 && grass_multimesh != nullptr) {
-                                auto worldcenter = propTriangle.center_pos();
-                                auto offset_world_center = worldcenter;
-                                offset_world_center.y -= 0.018f;
-                                auto normal_vector = propTriangle.normal();
-                                auto rright = normal_vector.cross({1,0,0});
-                                auto fforward = rright.cross(normal_vector).rotated(normal_vector,Math::fmod(Math::abs(worldcenter.x+worldcenter.y+worldcenter.z),Math::deg_to_rad(360.0f)));
-                                auto grasstransform = YarnVoxelData::CreateTransformFromPosScaleLook(offset_world_center,fforward,normal_vector,Vector3(0.8f,0.6f,0.8f));
-                                grass_multimesh->get_multimesh()->set_instance_transform(grass_count,grasstransform);
-                                //print_line("Setting grass transform ",grass_count," pos ",grasstransform.origin," from: ",chunk_number," pos ",offset_world_center);
-                                grass_count = grass_count+1;
-                                if (grass_count > multimesh_instance_count) {
-                                    multimesh_instance_count = multimesh_instance_count + 500;
-                                    grass_multimesh->get_multimesh()->set_instance_count(multimesh_instance_count);
-                                }
-                            }
+                            //TODO: GRASS
+                            // if (generate_grass && triangleSlope < 42 && propTriangle.desiredByte == 1 && grass_multimesh != nullptr) {
+                            //     auto worldcenter = propTriangle.center_pos();
+                            //     auto offset_world_center = worldcenter;
+                            //     offset_world_center.y -= 0.018f;
+                            //     auto normal_vector = propTriangle.normal();
+                            //     auto rright = normal_vector.cross({1,0,0});
+                            //     auto fforward = rright.cross(normal_vector).rotated(normal_vector,Math::fmod(Math::abs(worldcenter.x+worldcenter.y+worldcenter.z),Math::deg_to_rad(360.0f)));
+                            //     auto grasstransform = YarnVoxelData::CreateTransformFromPosScaleLook(offset_world_center,fforward,normal_vector,Vector3(0.8f,0.6f,0.8f));
+                            //     grass_multimesh->get_multimesh()->set_instance_transform(grass_count,grasstransform);
+                            //     //print_line("Setting grass transform ",grass_count," pos ",grasstransform.origin," from: ",chunk_number," pos ",offset_world_center);
+                            //     grass_count = grass_count+1;
+                            //     if (grass_count > multimesh_instance_count) {
+                            //         multimesh_instance_count = multimesh_instance_count + 500;
+                            //         grass_multimesh->get_multimesh()->set_instance_count(multimesh_instance_count);
+                            //     }
+                            // }
                             already_has_prop = true;
                         }
                     }
@@ -636,118 +667,153 @@ void YVoxelChunk::_notification(int p_what) {
         // } break;
         case NOTIFICATION_EXIT_TREE: {
             YarnVoxel::yvchunks.erase(chunk_number);
+            if (root_collision_instance.is_valid()) {
+                PhysicsServer3D::get_singleton()->free(root_collision_instance);
+                root_collision_instance = RID();
+                root_collision_shape.unref();
+            }
             break;
         }
-		case NOTIFICATION_PARENTED: {
-            if (Engine::get_singleton()->is_editor_hint()) {
-                //print_line("Parented");
-                if (get_owner() != nullptr) {
-                    if (static_body != nullptr) {
-                        static_body->set_owner(get_owner());
-                    }
-                    if (grass_multimesh != nullptr) {
-                        grass_multimesh->set_owner(get_owner());
-                    }
-                    if (collision_shape != nullptr) {
-                        collision_shape->set_owner(get_owner());
-                    }
-                }
-            }
-        }
-        case NOTIFICATION_READY: {
-            do_ready();
-        } break;
-        case NOTIFICATION_PROCESS: {
+		case NOTIFICATION_PROCESS: {
             do_process();
+		}
+        break;
+        case NOTIFICATION_PARENTED: {
+        }
+        break;
+        case NOTIFICATION_READY: {
+            if(is_inside_tree()) {
+                do_ready();
+            } else {
+                SceneTree::get_singleton()->connect(SNAME("process_frame"),callable_mp(this,&YVoxelChunk::do_ready),CONNECT_ONE_SHOT);
+            }
+        } break;
+        case NOTIFICATION_TRANSFORM_CHANGED: {
+            if (root_collision_instance.is_valid() && is_inside_tree()) {
+                PhysicsServer3D::get_singleton()->body_set_state(root_collision_instance, PhysicsServer3D::BODY_STATE_TRANSFORM, get_global_transform());
+            }
+            //_on_transform_changed();
         } break;
         default:
             break;
     }
 }
 
+void YVoxelChunk::deferred_set_dirty() {
+    YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number);
+}
 
 void YVoxelChunk::do_ready() {
     if (has_done_ready) {
         return;
     }
-    if (Engine::get_singleton()->is_editor_hint()) {
-        if (YarnVoxel::get_singleton()->get_main_node() == nullptr) {
-            YarnVoxel::get_singleton()->set_main_node(Object::cast_to<Node3D>(get_parent()));
+    if(!data.is_empty() && data.size() > 10) {
+        //print_line("Doing ready ",chunk_number);
+        if(!has_registered_chunk_number){
+            //print_line("Doing Do_REady Chunk number ",chunk_number);
+            YarnVoxel::get_singleton()->yvchunks[chunk_number] = this;
         }
+        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number);
     }
-    if (get_child_count() > 0) {
-        for (int i = 0; i < get_child_count(); ++i) {
-            if (get_child(i)->is_class("StaticBody3D")) {
-                static_body = Object::cast_to<StaticBody3D>(get_child(i));
-            } else if (get_child(i)->is_class("CollisionShape3D")){
-                collision_shape = Object::cast_to<CollisionShape3D>(get_child(i));
-            } else if (get_child(i)->is_class("MultiMeshInstance3D")){
-                grass_multimesh = Object::cast_to<MultiMeshInstance3D>(get_child(i));
-            }
-        }
-    }
-    if (static_body == nullptr) {
-        static_body = memnew(StaticBody3D);
-        static_body->set_meta(SNAME("_skip_save_"), true);
-        add_child(static_body);
-        if (Engine::get_singleton()->is_editor_hint()) {
-            if (get_owner() != nullptr) {
-                static_body->set_owner(get_owner());
-            } else {
-                static_body->set_owner(SceneTree::get_singleton()->get_current_scene());
-            }
-        }
-        static_body->set_position(YARNVOXEL_VECTOR3_ZERO);
-    } else if (static_body->get_child_count() > 0) {
-        for (int i = 0; i < static_body->get_child_count(); ++i) {
-            if (static_body->get_child(i)->is_class("CollisionShape3D")){
-                collision_shape = Object::cast_to<CollisionShape3D>(static_body->get_child(i));
-                collision_shape->set_meta(SNAME("_skip_save_"), true);
-            }
-        }
-    }
-    if (static_body != nullptr && collision_shape == nullptr) {
-        collision_shape = memnew(CollisionShape3D);
-        static_body->add_child(collision_shape);
-        if (Engine::get_singleton()->is_editor_hint()) {
-            collision_shape->set_owner(static_body->get_owner());
-        }
-        collision_shape->set_position(YARNVOXEL_VECTOR3_ZERO);
-    }
-    if (generate_grass && grass_multimesh == nullptr) {
-        grass_multimesh = memnew(MultiMeshInstance3D);
-        add_child(grass_multimesh);
-        if (Engine::get_singleton()->is_editor_hint()) {
-            grass_multimesh->set_owner(SceneTree::get_singleton()->get_current_scene());
-        }
-        grass_multimesh->set_name("GrassMultiMesh");
-        grass_multimesh->set_meta(SNAME("_skip_save_"), true);
-        Ref<MultiMesh> multimesh = memnew(MultiMesh);
-        multimesh->set_meta(SNAME("_skip_save_"), true);
-        multimesh->set_transform_format(MultiMesh::TRANSFORM_3D);
-        multimesh->set_use_colors(false);
-        multimesh->set_instance_count(multimesh_instance_count);
-        multimesh->set_mesh(YarnVoxel::get_singleton()->grass_mesh);
-        grass_multimesh->set_multimesh(multimesh);
-        grass_multimesh->set_position(YARNVOXEL_VECTOR3_ZERO);
-    }
-   // print_line("Static body is nullptr?",static_body!=nullptr);
-    if (static_body!= nullptr) {
-   //     print_line("My owner ",get_owner()," static body owner ",static_body->get_owner());
-    }
+    // if (generate_grass && grass_multimesh == nullptr) {
+    //     grass_multimesh = memnew(MultiMeshInstance3D);
+    //     add_child(grass_multimesh);
+    //     if (Engine::get_singleton()->is_editor_hint()) {
+    //         grass_multimesh->set_owner(SceneTree::get_singleton()->get_current_scene());
+    //     }
+    //     grass_multimesh->set_name("GrassMultiMesh");
+    //     grass_multimesh->set_meta(SNAME("_skip_save_"), true);
+    //     Ref<MultiMesh> multimesh = memnew(MultiMesh);
+    //     multimesh->set_meta(SNAME("_skip_save_"), true);
+    //     multimesh->set_transform_format(MultiMesh::TRANSFORM_3D);
+    //     multimesh->set_use_colors(false);
+    //     multimesh->set_instance_count(multimesh_instance_count);
+    //     multimesh->set_mesh(YarnVoxel::get_singleton()->grass_mesh);
+    //     grass_multimesh->set_multimesh(multimesh);
+    //     grass_multimesh->set_position(YARNVOXEL_VECTOR3_ZERO);
+    // }
     has_done_ready=true;
 }
+
 void YVoxelChunk::do_process() {
     const auto yv = YarnVoxel::get_singleton();
-    if(!has_done_ready) {
-        do_ready();
-    }
+    // if(!has_done_ready) {
+    //     do_ready();
+    // }
     if(yv->handle_dirty_chunks()) {
         set_process(false);
     }
 }
 
 
+void YVoxelChunk::set_collision_layer(uint32_t p_layer) {
+    collision_layer = p_layer;
+    if (root_collision_instance.is_valid()) {
+        PhysicsServer3D::get_singleton()->body_set_collision_layer(root_collision_instance, p_layer);
+    }
+}
+
+uint32_t YVoxelChunk::get_collision_layer() const {
+    return collision_layer;
+}
+
+void YVoxelChunk::set_collision_mask(uint32_t p_mask) {
+    collision_mask = p_mask;
+    if (root_collision_instance.is_valid()) {
+        PhysicsServer3D::get_singleton()->body_set_collision_mask(root_collision_instance, p_mask);
+    }
+}
+
+uint32_t YVoxelChunk::get_collision_mask() const {
+    return collision_mask;
+}
+
+void YVoxelChunk::set_collision_layer_value(int p_layer_number, bool p_value) {
+    ERR_FAIL_COND_MSG(p_layer_number < 1, "Collision layer number must be between 1 and 32 inclusive.");
+    ERR_FAIL_COND_MSG(p_layer_number > 32, "Collision layer number must be between 1 and 32 inclusive.");
+    uint32_t layer = get_collision_layer();
+    if (p_value) {
+        layer |= 1 << (p_layer_number - 1);
+    } else {
+        layer &= ~(1 << (p_layer_number - 1));
+    }
+    set_collision_layer(layer);
+}
+
+bool YVoxelChunk::get_collision_layer_value(int p_layer_number) const {
+    ERR_FAIL_COND_V_MSG(p_layer_number < 1, false, "Collision layer number must be between 1 and 32 inclusive.");
+    ERR_FAIL_COND_V_MSG(p_layer_number > 32, false, "Collision layer number must be between 1 and 32 inclusive.");
+    return get_collision_layer() & (1 << (p_layer_number - 1));
+}
+
+void YVoxelChunk::set_collision_mask_value(int p_layer_number, bool p_value) {
+    ERR_FAIL_COND_MSG(p_layer_number < 1, "Collision layer number must be between 1 and 32 inclusive.");
+    ERR_FAIL_COND_MSG(p_layer_number > 32, "Collision layer number must be between 1 and 32 inclusive.");
+    uint32_t mask = get_collision_mask();
+    if (p_value) {
+        mask |= 1 << (p_layer_number - 1);
+    } else {
+        mask &= ~(1 << (p_layer_number - 1));
+    }
+    set_collision_mask(mask);
+}
+
+bool YVoxelChunk::get_collision_mask_value(int p_layer_number) const {
+    ERR_FAIL_COND_V_MSG(p_layer_number < 1, false, "Collision layer number must be between 1 and 32 inclusive.");
+    ERR_FAIL_COND_V_MSG(p_layer_number > 32, false, "Collision layer number must be between 1 and 32 inclusive.");
+    return get_collision_mask() & (1 << (p_layer_number - 1));
+}
+
+void YVoxelChunk::set_collision_priority(real_t p_priority) {
+    collision_priority = p_priority;
+    if (root_collision_instance.is_valid()) {
+        PhysicsServer3D::get_singleton()->body_set_collision_priority(root_collision_instance, p_priority);
+    }
+}
+
+real_t YVoxelChunk::get_collision_priority() const {
+    return collision_priority;
+}
 
 bool YVoxelChunk::is_point_position_in_range_without_neighbours(int x, int y, int z) {
     return (x >= 0 && x < YARNVOXEL_CHUNK_WIDTH && y >= 0 && y < YARNVOXEL_CHUNK_HEIGHT && z >= 0 && z  < YARNVOXEL_CHUNK_WIDTH);
@@ -758,6 +824,7 @@ bool YVoxelChunk::is_point_position_in_range(int x, int y, int z) {
 
 void YVoxelChunk::_bind_methods() {
     ClassDB::bind_method(D_METHOD("generate"), &YVoxelChunk::generate);
+    ClassDB::bind_method(D_METHOD("deferred_set_dirty"), &YVoxelChunk::deferred_set_dirty);
     // ClassDB::bind_method(D_METHOD("add", "value"), &YVoxelChunk::add);
     // ClassDB::bind_method(D_METHOD("multiply", "value"), &YVoxelChunk::multiply);
     // ClassDB::bind_method(D_METHOD("reset"), &YVoxelChunk::reset);
@@ -785,14 +852,16 @@ void YVoxelChunk::_bind_methods() {
 }
 
 void YVoxelChunk::set_chunk_number(Vector3i v) {
+    //print_line("Set chunk number (current ",chunk_number," new ",v,") has registered? ",has_registered_chunk_number," has yarn voxel singleton? ",YarnVoxel::get_singleton() != nullptr);
         if (chunk_number != v || !has_registered_chunk_number) {
-            if (YarnVoxel::get_singleton() != nullptr) {
-                YVoxelChunk* find_chunk = nullptr;
-                if(YarnVoxel::get_singleton()->try_get_chunk(chunk_number,find_chunk) && find_chunk == this) {
-                    YarnVoxel::get_singleton()->yvchunks.erase(chunk_number);
-                }
-                YarnVoxel::get_singleton()->yvchunks[v] = this;
-                has_registered_chunk_number=true;
+            YVoxelChunk* find_chunk = nullptr;
+            if(YarnVoxel::try_get_chunk(chunk_number,find_chunk) && find_chunk == this) {
+
+                YarnVoxel::yvchunks.erase(chunk_number);
+            }
+            YarnVoxel::yvchunks[v] = this;
+            has_registered_chunk_number=true;
+            if(is_inside_tree()) {
                 set_bottom_corner_world_pos(YarnVoxel::get_singleton()->GetBottomCornerForChunkInNumber(chunk_number));
                 set_global_position(bottom_corner_world_pos);
             }
@@ -810,20 +879,19 @@ void YVoxelChunk::initialize(Vector3i initialize_position) {
     set_global_position(bottom_corner_world_pos);
 }
 YVoxelChunk::YVoxelChunk() {
+    for (int i = 0; i <= YARNVOXEL_CHUNK_WIDTH; ++i) {
+        for (int j = 0; j <= YARNVOXEL_CHUNK_HEIGHT; ++j) {
+            for (int k = 0; k <= YARNVOXEL_CHUNK_WIDTH; ++k) {
+                points[i][j][k] = YarnVoxelData::YVPointValue(); // Assuming YVPointValue has a default constructor
+            }
+        }
+    }
+    chunk_number = Vector3i{-99999,-99999,-99999};
     completed_generation = StaticCString::create("completed_generation");
 }
 
 YVoxelChunk::~YVoxelChunk() {
-    if (collision_shape != nullptr) {
-        memfree(collision_shape);
-        collision_shape=  nullptr;
-    }
-    if (static_body != nullptr) {
-        memfree(static_body);
-        static_body=  nullptr;
-    }
-    if (grass_multimesh != nullptr) {
-        memfree(grass_multimesh);
-        grass_multimesh = nullptr;
+    if (!root_collision_shape.is_null() && root_collision_shape.is_valid()) {
+        root_collision_shape.unref();
     }
 }
