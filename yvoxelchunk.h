@@ -5,9 +5,7 @@
 #ifndef YVOXELCHUNK_H
 #define YVOXELCHUNK_H
 
-#include "scene/resources/concave_polygon_shape_3d.h"
-#include "scene/3d/physics_body_3d.h"
-#include "scene/3d/collision_shape_3d.h"
+
 #include "constants.h"
 #include "scene/resources/surface_tool.h"
 #include "core/object/ref_counted.h"

@@ -5,6 +5,7 @@
 #include <chrono>
 #include "yvoxelchunk.h"
 #include "yarnvoxel.h"
+#include "scene/resources/3d/concave_polygon_shape_3d.h"
 
 #ifdef TOOLS_ENABLED
 #include "editor/editor_interface.h"
