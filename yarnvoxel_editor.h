@@ -5,6 +5,8 @@
 
 #include "core/config/project_settings.h"
 #include "editor/editor_plugin.h"
+class YVoxelChunkInspectorPlugin;
+
 namespace godot {
     class YarnVoxelEditorPlugin : public EditorPlugin  {
         GDCLASS(YarnVoxelEditorPlugin, EditorPlugin)
@@ -38,10 +40,17 @@ namespace godot {
     class YVoxelChunkEditorPlugin : public EditorPlugin {
         GDCLASS(YVoxelChunkEditorPlugin, EditorPlugin)
 
+        inline static YVoxelChunkEditorPlugin* singleton = nullptr;
+
+        static YVoxelChunkEditorPlugin* get_singleton();
+    protected:
+        Ref<YVoxelChunkInspectorPlugin> inspector_plugin;
+
     public:
         String get_name() const override;
 
         YVoxelChunkEditorPlugin();
+        ~YVoxelChunkEditorPlugin();
     };
 }
 

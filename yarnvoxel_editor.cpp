@@ -1,11 +1,13 @@
 // #ifndef TOOLS_ENABLED
 // #define TOOLS_ENABLED
 // #endif
+#ifdef TOOLS_ENABLED
+
 #include "yvoxelchunk.h"
 #include "editor/editor_inspector.h"
+#include "editor/editor_node.h"
 #include "editor/themes/editor_scale.h"
 #include "scene/gui/button.h"
-#ifdef TOOLS_ENABLED
 
 #include "yarnvoxel_editor.h"
 #include "constants.h"
@@ -162,9 +164,19 @@ String YVoxelChunkEditorPlugin::get_name() const {
 }
 
 YVoxelChunkEditorPlugin::YVoxelChunkEditorPlugin() {
-	Ref<YVoxelChunkInspectorPlugin> plugin;
-	plugin.instantiate();
-	add_inspector_plugin(plugin);
+	singleton = this;
+	if (EditorNode::get_singleton() == nullptr || !EditorNode::get_singleton()->is_editor_ready()) return;
+	inspector_plugin.instantiate();
+	add_inspector_plugin(inspector_plugin);
+}
+
+YVoxelChunkEditorPlugin::~YVoxelChunkEditorPlugin() {
+	if(singleton != nullptr && singleton == this) {
+		singleton = nullptr;
+	}
+	if (inspector_plugin != nullptr && inspector_plugin.is_valid()) {
+		inspector_plugin.unref();
+	}
 }
 
 
