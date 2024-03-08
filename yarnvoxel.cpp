@@ -477,7 +477,7 @@ YarnVoxel::YarnVoxel() {
 	// grass_material = nullptr;
 	generate_grass=false;
 	water_level = 2.0;
-	default_material_path = GLOBAL_DEF_RST(PropertyInfo(Variant::STRING, "YarnVoxel/general/default_material", PROPERTY_HINT_FILE, "*.tres,*.res", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED), "");
+	default_material_path = GLOBAL_DEF_RST(PropertyInfo(Variant::STRING, "yarnvoxel/general/default_material", PROPERTY_HINT_FILE, "*.tres,*.res", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED), "");
 	//print_line("default_material_path ",default_material_path);
 	material = Ref<Material>();
 }

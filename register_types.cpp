@@ -32,6 +32,7 @@ void initialize_yarnvoxel_module(ModuleInitializationLevel p_level) {
 		EditorPlugins::add_by_type<IslandGeneratorEditorPlugin>();
 		EditorPlugins::add_by_type<IslandGenEffectEditorPlugin>();
 		ClassDB::register_class<YVoxelChunkEditorPlugin>();
+		ClassDB::register_class<YVoxelEditorBottomPanel>();
 		EditorPlugins::add_by_type<YVoxelChunkEditorPlugin>();
 	}
 #endif
