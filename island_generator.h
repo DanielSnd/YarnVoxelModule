@@ -36,6 +36,7 @@ public:
     Ref<Gradient> get_color_ramp(){return color_ramp;}
     void set_color_ramp(Ref<Gradient> value) {
         color_ramp = value;
+        emit_changed();
     }
 
     float GetTerrainHeight(Vector2 chunkPos, bool doDebug);
@@ -52,7 +53,7 @@ public:
     int get_seed();
     void set_seed(int value);
 
-    Vector2i map_size = {256,256};
+    Vector2i map_size = {128,128};
     Vector2i get_map_size();
     void set_map_size(Vector2i value);
 

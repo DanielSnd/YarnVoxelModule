@@ -134,6 +134,8 @@ public:
 
     bool SetPointFromSurrounding(const Vector3i pointNumber, const uint8_t desiredByte, const Vector3i originatorPointNumber);
 
+    bool SetPointDensity(Vector3i pointNumber, float desired_density, uint8_t desiredByte);
+
     bool SetPoint(Vector3i pointNumber, uint8_t desiredByte);
 
     Vector3i AddX(Vector3i pointnumber, int add);

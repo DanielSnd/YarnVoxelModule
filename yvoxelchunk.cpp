@@ -26,7 +26,7 @@
 //
 
 void YVoxelChunk::AttemptSetDirtyNeighbour(Vector3i pointHit) const {
-    constexpr int getArrayLength = std::size(YarnVoxelData::SurroundingAndUpDownTable);
+    pointHit = get_world_pos_from_point_number(pointHit);
     for (auto i : YarnVoxelData::SurroundingAndUpDownTable) {
         auto cchunkNumber = YarnVoxel::GetChunkNumberFromPosition(pointHit + (i * 3));
         if (cchunkNumber != chunk_number) YarnVoxel::get_singleton()->set_dirty_chunk(cchunkNumber);
@@ -163,13 +163,15 @@ void YVoxelChunk::generate() {
     //print_line("Calling generate on ",chunk_number, " Editor hint: ",Engine::get_singleton()->is_editor_hint()," Is inside Tree: ", !is_inside_tree());
 #ifdef TOOLS_ENABLED
     if(Engine::get_singleton()->is_editor_hint() && !is_inside_tree()) {
-        SceneTree::get_singleton()->connect(SNAME("process_frame"),callable_mp(this,&YVoxelChunk::generate),CONNECT_ONE_SHOT);
+        if (!SceneTree::get_singleton()->is_connected("process_frame",callable_mp(this,&YVoxelChunk::generate)))
+            SceneTree::get_singleton()->connect(SNAME("process_frame"),callable_mp(this,&YVoxelChunk::generate),CONNECT_ONE_SHOT);
         return;
     }
 #endif
     if(!root_collision_instance.is_valid()) {
-        if(!root_collision_shape.is_valid() || root_collision_shape.is_null())
+        if(!root_collision_shape.is_valid() || root_collision_shape.is_null()) {
             root_collision_shape.instantiate();
+        }
         root_collision_shape->set_meta(SNAME("_skip_save_"), true);
         root_collision_instance = PhysicsServer3D::get_singleton()->body_create();
         PhysicsServer3D::get_singleton()->body_set_mode(root_collision_instance, PhysicsServer3D::BODY_MODE_STATIC);
@@ -505,6 +507,27 @@ bool YVoxelChunk::SetPointFromSurrounding(const Vector3i pointNumber, const uint
     }
     return false;
 }
+
+bool YVoxelChunk::SetPointDensity(const Vector3i pointNumber,const float desired_density, const uint8_t desiredByte) {
+    auto my_desired_density = floatToInt16(desired_density);
+    if(is_point_position_in_range_without_neighbours(pointNumber.x,pointNumber.y,pointNumber.z)) {
+        const auto vpv = &points[pointNumber.x][pointNumber.y][pointNumber.z];
+        vpv->byteValue = desiredByte;
+        vpv->floatValue = my_desired_density;
+        return true;
+    } else {
+        const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
+        auto other_chunk_number = YarnVoxel::GetChunkNumberFromPosition(desired_pos_other);
+        YVoxelChunk* neighbour_chunk = nullptr;
+        if(YarnVoxel::try_get_chunk(other_chunk_number,neighbour_chunk)) {
+            const auto other_point_pos = YarnVoxel::GetPointNumberFromPosition(desired_pos_other);
+            neighbour_chunk->SetPointDensity(other_point_pos,desired_density,desiredByte);
+            return true;
+        }
+    }
+    return false;
+}
+
 bool YVoxelChunk::SetPoint(const Vector3i pointNumber, const uint8_t desiredByte) {
     if(is_point_position_in_range_without_neighbours(pointNumber.x,pointNumber.y,pointNumber.z)) {
         const auto vpv = &points[pointNumber.x][pointNumber.y][pointNumber.z];
@@ -549,6 +572,7 @@ void YVoxelChunk::clear_triangles() {
 }
 
 void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config) {
+    bool is_triple_polycount = YarnVoxel::get_singleton()->is_triple_polycount;
     // If the configuration of this cube is 0 or 255 (completely inside the terrain or completely outside of it) we don't need to do anything.
     if (configIndex == 0 || configIndex == 255 || (debugging_config != 0 && debugging_config != configIndex)) return;
     Vector3 triangleVert1 = YARNVOXEL_VECTOR3_ZERO, triangleVert2 = YARNVOXEL_VECTOR3_ZERO;
@@ -596,7 +620,6 @@ void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desired
                 } else {
                     //print_line("position ",position," config index ",configIndex," dbyte ",desiredByte," vert1 ",triangleVert1," vert2 ",triangleVert2," vert3 ",vertPosition);
                     YarnVoxelData::YVTriangleData newTriangleData = YarnVoxelData::YVTriangleData(triangleVert1, triangleVert2, vertPosition, desiredByte,health);
-                    mesh_triangles.append(newTriangleData);
                     if (!has_first_generated && !already_has_prop) {
                         auto triangleSlope = YarnVoxelData::SlopeTriangleTable[configIndex][trianglesCreated];
                         if (triangleSlope < 48 && triangleSlope >= 0 && bottom_corner_world_pos.y + triangleVert1.y > water_level + 1.0f) {
@@ -621,6 +644,23 @@ void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desired
                             // }
                             already_has_prop = true;
                         }
+                    }
+
+                    if (is_triple_polycount) {
+                        auto triangle_area = YarnVoxelData::TriangleAreaTable[configIndex][trianglesCreated];
+                        if (triangle_area>30) {
+                            Vector3 middle_pos = triangleVert1.lerp(triangleVert2,0.5).lerp(vertPosition,0.5);
+                            YarnVoxelData::YVTriangleData newTriangleData1 = YarnVoxelData::YVTriangleData(triangleVert1, triangleVert2, middle_pos, desiredByte,health);
+                            YarnVoxelData::YVTriangleData newTriangleData2 = YarnVoxelData::YVTriangleData(middle_pos, triangleVert2, vertPosition, desiredByte,health);
+                            YarnVoxelData::YVTriangleData newTriangleData3 = YarnVoxelData::YVTriangleData(vertPosition,triangleVert1, middle_pos, desiredByte,health);
+                            mesh_triangles.append(newTriangleData1);
+                            mesh_triangles.append(newTriangleData2);
+                            mesh_triangles.append(newTriangleData3);
+                        } else {
+                            mesh_triangles.append(newTriangleData);
+                        }
+                    } else {
+                        mesh_triangles.append(newTriangleData);
                     }
                     currentTriangleCount = 0;
                     trianglesCreated++;
@@ -667,16 +707,11 @@ void YVoxelChunk::_notification(int p_what) {
         // case NOTIFICATION_ENTER_WORLD: {
         // } break;
         case NOTIFICATION_EXIT_TREE: {
-            YarnVoxel::yvchunks.erase(chunk_number);
-            if (root_collision_instance.is_valid()) {
-                PhysicsServer3D::get_singleton()->free(root_collision_instance);
-                root_collision_instance = RID();
-                root_collision_shape.unref();
-            }
-            break;
         }
 		case NOTIFICATION_PROCESS: {
-            do_process();
+            if(has_done_ready && is_inside_tree()) {
+                do_process();
+            }
 		}
         break;
         case NOTIFICATION_PARENTED: {
@@ -705,14 +740,16 @@ void YVoxelChunk::deferred_set_dirty() {
 }
 
 void YVoxelChunk::do_ready() {
+    //print_line(vformat("do_ready ychunk %s , has done ready? %s has registered chunk number? %s, what's the chunk number? %s",get_name(),has_done_ready,has_registered_chunk_number,chunk_number));
     if (has_done_ready) {
         return;
     }
     if(!data.is_empty() && data.size() > 10) {
-        //print_line("Doing ready ",chunk_number);
+        YarnVoxel::get_singleton()->set_fallback_main_node(Object::cast_to<Node3D>(get_parent()));
+        //print_line("Doing ready ",chunk_number," yvchunks registered ",YarnVoxel::yvchunks.size());
         if(!has_registered_chunk_number){
-            //print_line("Doing Do_REady Chunk number ",chunk_number);
-            YarnVoxel::get_singleton()->yvchunks[chunk_number] = this;
+            YarnVoxel::yvchunks[chunk_number] = this;
+            //print_line("Doing Do_REady Chunk number ",chunk_number," count of yvchunks registered ",YarnVoxel::yvchunks.size());
         }
         YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number);
     }
@@ -741,7 +778,7 @@ void YVoxelChunk::do_process() {
     // if(!has_done_ready) {
     //     do_ready();
     // }
-    if(yv->handle_dirty_chunks()) {
+    if(has_done_ready && yv->handle_dirty_chunks()) {
         set_process(false);
     }
 }
@@ -846,18 +883,44 @@ void YVoxelChunk::_bind_methods() {
 
     ClassDB::bind_method(D_METHOD("get_data"), &YVoxelChunk::get_data);
     ClassDB::bind_method(D_METHOD("set_data","data"), &YVoxelChunk::set_data);
+
+
+    //
+    // ClassDB::bind_method(D_METHOD("set_use_collision", "operation"), &YVoxelChunk::set_use_collision);
+    // ClassDB::bind_method(D_METHOD("is_using_collision"), &YVoxelChunk::is_using_collision);
+
+    ClassDB::bind_method(D_METHOD("set_collision_layer", "layer"), &YVoxelChunk::set_collision_layer);
+    ClassDB::bind_method(D_METHOD("get_collision_layer"), &YVoxelChunk::get_collision_layer);
+
+    ClassDB::bind_method(D_METHOD("set_collision_mask", "mask"), &YVoxelChunk::set_collision_mask);
+    ClassDB::bind_method(D_METHOD("get_collision_mask"), &YVoxelChunk::get_collision_mask);
+
+    ClassDB::bind_method(D_METHOD("set_collision_mask_value", "layer_number", "value"), &YVoxelChunk::set_collision_mask_value);
+    ClassDB::bind_method(D_METHOD("get_collision_mask_value", "layer_number"), &YVoxelChunk::get_collision_mask_value);
+
+    ClassDB::bind_method(D_METHOD("set_collision_layer_value", "layer_number", "value"), &YVoxelChunk::set_collision_layer_value);
+    ClassDB::bind_method(D_METHOD("get_collision_layer_value", "layer_number"), &YVoxelChunk::get_collision_layer_value);
+
+    ClassDB::bind_method(D_METHOD("set_collision_priority", "priority"), &YVoxelChunk::set_collision_priority);
+    ClassDB::bind_method(D_METHOD("get_collision_priority"), &YVoxelChunk::get_collision_priority);
+
     ADD_PROPERTY(PropertyInfo(Variant::PACKED_BYTE_ARRAY, "__data__", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_INTERNAL), "set_data", "get_data");
 
     ADD_PROPERTY(PropertyInfo(Variant::VECTOR3I, "chunk_number"), "set_chunk_number", "get_chunk_number");
     ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "bottom_corner_world_pos"), "set_bottom_corner_world_pos", "get_bottom_corner_world_pos");
+
+    ADD_GROUP("Collision", "collision_");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "collision_layer", PROPERTY_HINT_LAYERS_3D_PHYSICS), "set_collision_layer", "get_collision_layer");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "collision_mask", PROPERTY_HINT_LAYERS_3D_PHYSICS), "set_collision_mask", "get_collision_mask");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "collision_priority"), "set_collision_priority", "get_collision_priority");
+
 }
 
 void YVoxelChunk::set_chunk_number(Vector3i v) {
-    //print_line("Set chunk number (current ",chunk_number," new ",v,") has registered? ",has_registered_chunk_number," has yarn voxel singleton? ",YarnVoxel::get_singleton() != nullptr);
+    //print_line(get_name(),"Set chunk number (current ",chunk_number," new ",v,") has registered? ",has_registered_chunk_number," has yarn voxel singleton? ",YarnVoxel::get_singleton() != nullptr);
         if (chunk_number != v || !has_registered_chunk_number) {
             YVoxelChunk* find_chunk = nullptr;
             if(YarnVoxel::try_get_chunk(chunk_number,find_chunk) && find_chunk == this) {
-
                 YarnVoxel::yvchunks.erase(chunk_number);
             }
             YarnVoxel::yvchunks[v] = this;
@@ -892,6 +955,12 @@ YVoxelChunk::YVoxelChunk() {
 }
 
 YVoxelChunk::~YVoxelChunk() {
+    YarnVoxel::yvchunks.erase(chunk_number);
+    if (root_collision_instance.is_valid()) {
+        if (PhysicsServer3D::get_singleton() != nullptr)
+            PhysicsServer3D::get_singleton()->free(root_collision_instance);
+        root_collision_instance = RID();
+    }
     if (!root_collision_shape.is_null() && root_collision_shape.is_valid()) {
         root_collision_shape.unref();
     }

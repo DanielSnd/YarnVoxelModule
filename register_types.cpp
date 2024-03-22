@@ -12,6 +12,7 @@
 #include "core/object/class_db.h"
 #include "yarnvoxel.h"
 #include "yvoxelchunk.h"
+#include "island_gen_node.h"
 
 #ifdef TOOLS_ENABLED
 #include "islandgen_editor_plugin.h"
@@ -42,6 +43,7 @@ void initialize_yarnvoxel_module(ModuleInitializationLevel p_level) {
 	}
 	ClassDB::register_class<YarnVoxel>();
 	ClassDB::register_class<YVoxelChunk>();
+	ClassDB::register_class<IslandGeneratorHelper>();
 	ClassDB::register_class<IslandGenerator>();
 	ClassDB::register_class<IslandGenEffect>();
 	ClassDB::register_class<IGE_FastNoise>();

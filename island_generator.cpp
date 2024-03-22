@@ -9,6 +9,7 @@
 #include "yvoxelchunk.h"
 #include "core/core_string_names.h"
 #include "modules/noise/fastnoise_lite.h"
+#include "scene/resources/gradient_texture.h"
 
 float IslandGenerator::GetTerrainHeight(Vector2 chunkPos, bool doDebug = false) {
     float result = 1;
@@ -42,18 +43,18 @@ void IslandGenerator::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_height_multiplier", "value"), &IslandGenerator::set_height_multiplier);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "size_height_multiplier"), "set_height_multiplier", "get_height_multiplier");
 
+    ADD_GROUP("Elements","el_");
     ClassDB::bind_method(D_METHOD("get_water_level"), &IslandGenerator::get_water_level);
     ClassDB::bind_method(D_METHOD("set_water_level", "value"), &IslandGenerator::set_water_level);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "size_water_level"), "set_water_level", "get_water_level");
-
-    ADD_GROUP("Elements","el_");
-    ClassDB::bind_method(D_METHOD("get_terrain_min"), &IslandGenerator::get_terrain_min);
-    ClassDB::bind_method(D_METHOD("set_terrain_min", "value"), &IslandGenerator::set_terrain_min);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "el_terrain_min",PROPERTY_HINT_RANGE, "0,1.2,0.001"), "set_terrain_min", "get_terrain_min");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "el_water_level"), "set_water_level", "get_water_level");
 
     ClassDB::bind_method(D_METHOD("get_min_cave_height"), &IslandGenerator::get_min_cave_height);
     ClassDB::bind_method(D_METHOD("set_min_cave_height", "value"), &IslandGenerator::set_min_cave_height);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "el_min_cave_height"), "set_min_cave_height", "get_min_cave_height");
+
+    ClassDB::bind_method(D_METHOD("get_terrain_min"), &IslandGenerator::get_terrain_min);
+    ClassDB::bind_method(D_METHOD("set_terrain_min", "value"), &IslandGenerator::set_terrain_min);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "el_terrain_min",PROPERTY_HINT_RANGE, "0,1.2,0.001"), "set_terrain_min", "get_terrain_min");
 
     ClassDB::bind_method(D_METHOD("get_cave_smoothness"), &IslandGenerator::get_cave_smoothness);
     ClassDB::bind_method(D_METHOD("set_cave_smoothness", "value"), &IslandGenerator::set_cave_smoothness);
@@ -145,6 +146,7 @@ float IslandGenerator::get_water_level() {
 
 void IslandGenerator::set_water_level(float value) {
     water_level = value;
+    emit_changed();
 }
 
 // Cave Smoothness
@@ -225,7 +227,14 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
     int highestYWithBlock = -99;
     // Assuming map_size is a struct or class with x and y members
     // If it's not, replace it with the appropriate type.
-
+    Ref<ShaderMaterial> current_mat = YarnVoxel::get_singleton()->get_material();
+    if (current_mat.is_valid() && YarnVoxel::get_singleton()->using_default_shader) {
+        current_mat->set_shader_parameter("water_level",water_level);
+        Ref<GradientTexture1D> grad_text = (current_mat->get_shader_parameter("gradient"));
+        if (!grad_text.is_null() && grad_text.is_valid()) {
+            grad_text->set_gradient(color_ramp);
+        }
+    }
     std::vector<std::vector<float>> map(map_size.x + 1, std::vector<float>(map_size.y + 1));
     yarnvoxel_singleton->water_level = water_level;
     for (int x = 0; x < map_size.x; x++) {

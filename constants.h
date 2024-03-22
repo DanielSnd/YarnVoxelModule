@@ -11,8 +11,9 @@
 static constexpr const char* YARNVOXEL_SETTINGS_BASE_PATH = "YarnVoxel";
 static constexpr const int YARNVOXEL_CHUNK_WIDTH = 32;
 static constexpr const int YARNVOXEL_CHUNK_HEIGHT = 32;
-static constexpr const int16_t YARNVOXEL_TERRAIN_SURFACE = 0.0;
+static constexpr const int16_t YARNVOXEL_TERRAIN_SURFACE = 0;
 static const Vector3 YARNVOXEL_VECTOR3_ZERO = {0.0,0.0,0.0};
+static const Vector3 YARNVOXEL_VECTOR3_ONE = {1.0,1.0,1.0};
 static const Vector3i YARNVOXEL_VECTOR3I_ZERO = {0,0,0};
 static const Vector2i YARNVOXEL_VECTOR2I_ZERO = {0,0};
 static constexpr const int16_t ZERO_SHORT = 0;
@@ -53,6 +54,37 @@ namespace YarnVoxelData {
 		uint8_t health;
 		explicit YVPointValue(uint8_t bv = 0, int16_t fv = INT16_MAX, uint8_t hv = 255)
 			: byteValue(bv), floatValue(fv), health(hv) {}
+		[[nodiscard]] float get_float_value_as_float() const {
+			return int16ToFloat(floatValue);
+		}
+		void set_float_value_as_float(const float _f) {
+			floatValue = floatToInt16(_f);
+		}
+	};
+
+	inline static const String BlockTypeToName[11] = {
+		//NONE
+		"Air",
+		//GRASS
+		"Grass",
+		//DIRT
+		"Dirt",
+		//STONE
+		"Stone",
+		//SAND:
+		"Sand",
+		//IRON
+		"Iron",
+		//COPPER:
+		"Copper",
+		//BRONZE:
+		"Bronze",
+		//SILVER:
+		"Silver",
+		//GOLD:
+		"Gold",
+		//DIAMOND:
+		"Diamond"
 	};
 
 	inline static const Color BlockTypeToColor[11] = {

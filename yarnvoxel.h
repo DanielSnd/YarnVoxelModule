@@ -37,12 +37,17 @@ class YarnVoxel : public Object {
 protected:
 	static void _bind_methods();
 	static YarnVoxel* singleton;
+        void _notification(int p_what);
 
 public:
+	uint64_t ticks_late_generated;
 	static HashMap<Vector3i,YVoxelChunk *> yvchunks;
 	bool is_generating;
+	bool using_default_shader = false;
 	bool get_is_generating() const {return is_generating;}
 	bool is_debugging_chunk;
+	bool is_triple_polycount;
+	bool is_enabled;
 	bool generate_grass{};
 	void set_generate_grass(bool status) {generate_grass = status;}
 	bool get_generate_grass() const {return generate_grass;}
@@ -97,6 +102,9 @@ public:
 	void set_debugging_config(int val);
 
 	Node3D* get_main_node();
+	void set_fallback_main_node(Node3D* fallback_main);
+	void create_main_node_under(Node3D *obj);
+
 	void set_main_node(Node3D* obj);
 
 	Vector3i get_debug_pos() const;
@@ -113,6 +121,14 @@ public:
 	Ref<Material> get_material();
 
 	void changeFloatAtPosition(Vector3i position, float newFloat, uint8_t newBlockType, uint8_t health);
+
+	void modify_voxel_area(Vector3i pos, float amount, int brushSize, int block_type = -1);
+
+	Array find_closest_solid_point_to(Vector3 pos);
+
+	bool damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize);
+
+	void smooth_voxel_area(Vector3i pos, float amount, int brushSize);
 
 	static bool IsPointNumberInBoundary(Vector3i bnumber);
 
@@ -150,6 +166,10 @@ public:
 
 	int FindBlockTypeForPos(Vector3 pos);
 
+	void set_point_data_for_wpos(Vector3 pos, YarnVoxelData::YVPointValue pv);
+
+	YarnVoxelData::YVPointValue get_point_data_for_wpos(Vector3 pos);
+
 	int HashKey(Vector3 v);
 
 	static bool try_get_chunk(Vector3i chunkPosition, YVoxelChunk*& chunk_pointer);
@@ -162,6 +182,8 @@ public:
 	YarnVoxel();
 	~YarnVoxel() override;
 	static YarnVoxel* get_singleton();
+
+	void empty_all_chunks();
 
 	void clear_all_chunks();
 
