@@ -17,7 +17,7 @@ float IGE_SampleImage::Remap(float value, float from1, float to1, float from2, f
 
 void IGE_SampleImage::set_image_to_use(const Ref<Texture2D> &p_img) {
     image_to_use = p_img;
-    actual_image = nullptr;
+    actual_image = Ref<Image>();
     if (!image_to_use.is_null() && image_to_use.is_valid()) {
         actual_image = image_to_use->get_image();
     }
