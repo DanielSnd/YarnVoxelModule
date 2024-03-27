@@ -17,8 +17,7 @@ protected:
     float Remap(float value, float from1, float to1, float from2, float to2);
 
 public:
-    enum MathType
-    {
+    enum MathType {
         MathType_Add,
         MathType_Multiply,
         MathType_Divide,

@@ -6,6 +6,7 @@
 #include "ige_falloff.h"
 #include "ige_fastnoise.h"
 #include "ige_mathoperation.h"
+#include "ige_sample_image.h"
 #include "ige_terrace.h"
 #include "island_generator.h"
 #include "island_gen_effect.h"
@@ -47,6 +48,7 @@ void initialize_yarnvoxel_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<IslandGenerator>();
 	ClassDB::register_class<IslandGenEffect>();
 	ClassDB::register_class<IGE_FastNoise>();
+	ClassDB::register_class<IGE_SampleImage>();
 	ClassDB::register_class<IGE_Falloff>();
 	ClassDB::register_class<IGE_MathOperation>();
 	ClassDB::register_class<IGE_Curve>();
