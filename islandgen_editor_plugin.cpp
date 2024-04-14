@@ -2,10 +2,10 @@
 // Created by Daniel on 2024-01-07.
 //
 
-#include "islandgen_editor_plugin.h"
-
 
 #ifdef TOOLS_ENABLED
+
+#include "islandgen_editor_plugin.h"
 
 class IslandGeneratorPreview : public Control {
 	GDCLASS(IslandGeneratorPreview, Control)

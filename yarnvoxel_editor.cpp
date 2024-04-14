@@ -1,6 +1,3 @@
-// #ifndef TOOLS_ENABLED
-// #define TOOLS_ENABLED
-// #endif
 #ifdef TOOLS_ENABLED
 
 
@@ -340,26 +337,26 @@ YarnVoxelEditorPlugin::YarnVoxelEditorPlugin() {
 }
 
 YarnVoxelEditorPlugin::~YarnVoxelEditorPlugin() {
-	if (voxel_edit_button_holder != nullptr) {
-		memdelete(voxel_edit_button_holder);
-		voxel_edit_button_holder = nullptr;
-	}
-	if (voxel_edit_button != nullptr) {
-		memdelete(voxel_edit_button);
-		voxel_edit_button = nullptr;
-	}
-	if (yvoxel_bottom_panel != nullptr) {
-		memdelete(yvoxel_bottom_panel);
-		yvoxel_bottom_panel = nullptr;
-	}
-	if (preview_brush != nullptr) {
-		memdelete(preview_brush);
-		preview_brush = nullptr;
-	}
-	if (preview_brush_above != nullptr) {
-		memdelete(preview_brush_above);
-		preview_brush_above = nullptr;
-	}
+	// if (voxel_edit_button_holder != nullptr) {
+	// 	memdelete(voxel_edit_button_holder);
+	// 	voxel_edit_button_holder = nullptr;
+	// }
+	// if (voxel_edit_button != nullptr) {
+	// 	memdelete(voxel_edit_button);
+	// 	voxel_edit_button = nullptr;
+	// }
+	// if (yvoxel_bottom_panel != nullptr) {
+	// 	memdelete(yvoxel_bottom_panel);
+	// 	yvoxel_bottom_panel = nullptr;
+	// }
+	// if (preview_brush != nullptr) {
+	// 	memdelete(preview_brush);
+	// 	preview_brush = nullptr;
+	// }
+	// if (preview_brush_above != nullptr) {
+	// 	memdelete(preview_brush_above);
+	// 	preview_brush_above = nullptr;
+	// }
 }
 
 YVoxelEditorBottomPanel::YVoxelEditorBottomPanel() {

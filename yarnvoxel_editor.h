@@ -1,9 +1,9 @@
-#include "scene/gui/slider.h"
-#ifdef TOOLS_ENABLED
-
 #ifndef YARNVOXEL_EDITOR_H
 #define YARNVOXEL_EDITOR_H
 
+#ifdef TOOLS_ENABLED
+
+#include "scene/gui/slider.h"
 #include "yvoxelchunk.h"
 #include "editor/editor_inspector.h"
 #include "editor/editor_node.h"
@@ -166,7 +166,6 @@ class YVoxelChunkEditorPlugin : public EditorPlugin {
     };
 }
 
+#endif
 
 #endif //YARNVOXEL_EDITOR_H
-
-#endif
