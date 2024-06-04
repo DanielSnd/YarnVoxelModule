@@ -18,7 +18,7 @@
 #ifdef TOOLS_ENABLED
 #include "islandgen_editor_plugin.h"
 #include "yarnvoxel_editor.h"
-#include "editor/editor_plugin.h"
+#include "editor/plugins/editor_plugin.h"
 #endif
 
 using namespace godot;

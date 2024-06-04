@@ -12,7 +12,7 @@
 #include "constants.h"
 #include "editor/gui/editor_bottom_panel.h"
 #include "core/config/project_settings.h"
-#include "editor/editor_plugin.h"
+#include "editor/plugins/editor_plugin.h"
 #include "scene/gui/control.h"
 #include "editor/editor_undo_redo_manager.h"
 #include "scene/gui/container.h"
