@@ -6,7 +6,6 @@
 #include "core/math/vector2i.h"
 #include "core/math/vector3i.h"
 #include "core/math/vector3.h"
-#include "core/math/vector2.h"
 
 static constexpr const char* YARNVOXEL_SETTINGS_BASE_PATH = "YarnVoxel";
 static constexpr const int YARNVOXEL_CHUNK_WIDTH = 32;
@@ -36,7 +35,7 @@ inline float int16ToFloat(int16_t value) {
 }
 
 namespace YarnVoxelData {
-	struct _NO_DISCARD_ YVTriangleData {
+	struct YVTriangleData {
 		Vector3 v1;
 		Vector3 v2;
 		Vector3 v3;
@@ -48,7 +47,7 @@ namespace YarnVoxelData {
 			: v1(item1), v2(item2), v3(item3), desiredByte(dbyte), health(health) {}
 	};
 
-	struct _NO_DISCARD_ YVPointValue {
+	struct YVPointValue {
 		uint8_t byteValue;
 		int16_t floatValue;
 		uint8_t health;
@@ -666,7 +665,7 @@ namespace YarnVoxelData {
 		}
 		return return_v;
 	}
-	struct _NO_DISCARD_ YVPropTriangleData {
+	struct YVPropTriangleData {
 		Vector3i chunk_number;
 		Vector3 v1;
 		Vector3 v2;
@@ -684,7 +683,7 @@ namespace YarnVoxelData {
 		[[nodiscard]] float slope() const {
 			return SlopeTriangleTable[march_index_triangle_index.x][march_index_triangle_index.y];
 		}
-		[[nodiscard]] float average_slope() const {
+		[[nodiscard]] int average_slope() const {
 			return AverageSlopeTable[march_index_triangle_index.x];
 		}
 		[[nodiscard]] Vector3 center_pos_lerped(float lerp1 =0.5f, float lerp2=0.5f) const {
