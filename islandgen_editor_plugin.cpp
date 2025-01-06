@@ -301,10 +301,6 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////////
 
-String IslandGeneratorEditorPlugin::get_name() const {
-	return IslandGenerator::get_class_static();
-}
-
 IslandGeneratorEditorPlugin::IslandGeneratorEditorPlugin() {
 	Ref<IslandGeneratorInspectorPlugin> plugin;
 	plugin.instantiate();
@@ -416,10 +412,6 @@ public:
 /////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////
-
-String IslandGenEffectEditorPlugin::get_name() const {
-	return IslandGenerator::get_class_static();
-}
 
 IslandGenEffectEditorPlugin::IslandGenEffectEditorPlugin() {
 	Ref<IslandGenEffectInspectorPlugin> plugin;

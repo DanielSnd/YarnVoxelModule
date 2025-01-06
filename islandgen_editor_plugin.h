@@ -29,7 +29,7 @@ class IslandGeneratorEditorPlugin : public EditorPlugin {
     GDCLASS(IslandGeneratorEditorPlugin, EditorPlugin)
 
 public:
-    String get_name() const override;
+	virtual String get_plugin_name() const override { return IslandGenerator::get_class_static(); }
 
     IslandGeneratorEditorPlugin();
 };
@@ -39,7 +39,7 @@ class IslandGenEffectEditorPlugin : public EditorPlugin {
     GDCLASS(IslandGenEffectEditorPlugin, EditorPlugin)
 
 public:
-    String get_name() const override;
+	virtual String get_plugin_name() const override { return  IslandGenerator::get_class_static(); }
 
     IslandGenEffectEditorPlugin();
 };
