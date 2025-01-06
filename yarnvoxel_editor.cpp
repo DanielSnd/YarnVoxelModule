@@ -574,10 +574,6 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////////
 
-String YVoxelChunkEditorPlugin::get_name() const {
-	return YVoxelChunkEditorPlugin::get_class_static();
-}
-
 YVoxelChunkEditorPlugin::YVoxelChunkEditorPlugin() {
 	singleton = this;
 	if (EditorNode::get_singleton() == nullptr || !EditorNode::get_singleton()->is_editor_ready()) return;

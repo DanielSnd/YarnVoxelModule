@@ -160,7 +160,7 @@ class YVoxelChunkEditorPlugin : public EditorPlugin {
         Ref<YVoxelChunkInspectorPlugin> inspector_plugin;
 
     public:
-        String get_name() const override;
+    	virtual String get_plugin_name() const override { return  YVoxelChunkEditorPlugin::get_class_static(); }
         YVoxelChunkEditorPlugin();
         ~YVoxelChunkEditorPlugin();
     };
