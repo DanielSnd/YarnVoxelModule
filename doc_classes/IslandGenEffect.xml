@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="IslandGenEffect" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="amount" type="float" setter="set_amount" getter="get_amount" default="1.0">
+		</member>
+		<member name="enabled" type="bool" setter="set_enabled" getter="get_enabled" default="true">
+		</member>
+		<member name="mask_frequency" type="float" setter="set_mask_frequency" getter="get_mask_frequency" default="0.5">
+		</member>
+		<member name="mask_invert" type="bool" setter="set_invert_mask" getter="get_invert_mask" default="false">
+		</member>
+		<member name="mask_minimum" type="float" setter="set_mask_minimum" getter="get_mask_minimum" default="0.5">
+		</member>
+		<member name="mask_multiplier" type="float" setter="set_mask_multiplier" getter="get_mask_multiplier" default="0.5">
+		</member>
+		<member name="use_mask" type="bool" setter="set_use_mask" getter="get_use_mask" default="false">
+		</member>
+	</members>
+</class>

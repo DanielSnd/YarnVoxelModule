@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="IslandGenerator" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="generate_island">
+			<return type="void" />
+			<param index="0" name="world_pos" type="Vector3" default="Vector3(0, 0, 0)" />
+			<description>
+			</description>
+		</method>
+		<method name="get_biggest_surrounding_incidence">
+			<return type="Vector3i" />
+			<param index="0" name="point_number" type="Vector3i" />
+			<param index="1" name="voxel_chunk" type="YVoxelChunk" />
+			<param index="2" name="calculate_air" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="get_terrain_height">
+			<return type="float" />
+			<param index="0" name="chunkPos" type="Vector2" />
+			<param index="1" name="doDebug" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="color_ramp" type="Gradient" setter="set_color_ramp" getter="get_color_ramp">
+		</member>
+		<member name="effects" type="Array" setter="set_effects" getter="get_effects" default="[]">
+		</member>
+		<member name="el_cave_if_above" type="float" setter="set_cave_if_above" getter="get_cave_if_above" default="-0.008">
+		</member>
+		<member name="el_cave_lacunarity" type="float" setter="set_cave_lacunarity" getter="get_cave_lacunarity" default="1.908">
+		</member>
+		<member name="el_cave_smoothness" type="float" setter="set_cave_smoothness" getter="get_cave_smoothness" default="0.0178">
+		</member>
+		<member name="el_min_cave_height" type="float" setter="set_min_cave_height" getter="get_min_cave_height" default="-4.2">
+		</member>
+		<member name="el_slope_for_grass" type="Vector2" setter="set_slope_for_grass" getter="get_slope_for_grass" default="Vector2(46, 0)">
+		</member>
+		<member name="el_slope_for_stone" type="Vector2" setter="set_slope_for_stone" getter="get_slope_for_stone" default="Vector2(-80, 58)">
+		</member>
+		<member name="el_terrain_min" type="float" setter="set_terrain_min" getter="get_terrain_min" default="1.2">
+		</member>
+		<member name="el_water_level" type="float" setter="set_water_level" getter="get_water_level" default="-1.15">
+		</member>
+		<member name="seed" type="int" setter="set_seed" getter="get_seed" default="-1">
+		</member>
+		<member name="size_height_multiplier" type="float" setter="set_height_multiplier" getter="get_height_multiplier" default="20.0">
+		</member>
+		<member name="size_map" type="Vector2i" setter="set_map_size" getter="get_map_size" default="Vector2i(128, 128)">
+		</member>
+	</members>
+</class>

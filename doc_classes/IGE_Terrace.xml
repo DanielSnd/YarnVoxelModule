@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="IGE_Terrace" inherits="IslandGenEffect" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="max_height" type="float" setter="set_max_height" getter="get_max_height" default="1.0">
+		</member>
+		<member name="min_height" type="float" setter="set_min_height" getter="get_min_height" default="0.0">
+		</member>
+		<member name="offset" type="float" setter="set_offset" getter="get_offset" default="0.0">
+		</member>
+		<member name="terrace_amount" type="float" setter="set_terrace_amount" getter="get_terrace_amount" default="10.0">
+		</member>
+	</members>
+</class>

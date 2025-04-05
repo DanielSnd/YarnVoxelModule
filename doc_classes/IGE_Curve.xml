@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="IGE_Curve" inherits="IslandGenEffect" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="curve" type="Curve" setter="set_curve" getter="get_curve">
+		</member>
+		<member name="normalize" type="bool" setter="set_normalize" getter="get_normalize" default="false">
+		</member>
+	</members>
+</class>

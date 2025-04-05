@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="IGE_MathOperation" inherits="IslandGenEffect" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="math_type" type="int" setter="set_math_type" getter="get_math_type" enum="IGE_MathOperation.MathType" default="0">
+		</member>
+		<member name="number" type="float" setter="set_number" getter="get_number" default="0.0">
+		</member>
+		<member name="remap_after_max" type="float" setter="set_after_max" getter="get_after_max" default="0.0">
+		</member>
+		<member name="remap_after_min" type="float" setter="set_after_min" getter="get_after_min" default="0.0">
+		</member>
+		<member name="remap_before_max" type="float" setter="set_before_max" getter="get_before_max" default="0.0">
+		</member>
+		<member name="remap_before_min" type="float" setter="set_before_min" getter="get_before_min" default="0.0">
+		</member>
+	</members>
+	<constants>
+		<constant name="MathType_Add" value="0" enum="MathType">
+		</constant>
+		<constant name="MathType_Multiply" value="1" enum="MathType">
+		</constant>
+		<constant name="MathType_Divide" value="2" enum="MathType">
+		</constant>
+		<constant name="MathType_Power" value="3" enum="MathType">
+		</constant>
+		<constant name="MathType_Square" value="4" enum="MathType">
+		</constant>
+		<constant name="MathType_Remap" value="5" enum="MathType">
+		</constant>
+		<constant name="MathType_Replace" value="6" enum="MathType">
+		</constant>
+	</constants>
+</class>
