@@ -101,6 +101,8 @@ public:
 
     Vector2 GetDensity3D(float x, float y, float z, float initialDensity, float desiredHeight) const;
 
+    void generate_chunk(Vector3i chunk_number);
+
     IslandGenerator();
     ~IslandGenerator();
 };

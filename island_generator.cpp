@@ -28,6 +28,7 @@ float IslandGenerator::GetTerrainHeight(Vector2 chunkPos, bool doDebug = false) 
 void IslandGenerator::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_terrain_height","chunkPos","doDebug"), &IslandGenerator::GetTerrainHeight,DEFVAL(false));
     ClassDB::bind_method(D_METHOD("generate_island","world_pos"), &IslandGenerator::generate_island,DEFVAL(Vector3(0,0,0)));
+    ClassDB::bind_method(D_METHOD("generate_chunk", "chunk_number"), &IslandGenerator::generate_chunk);
 
     ClassDB::bind_method(D_METHOD("set_seed", "seed"), &IslandGenerator::set_seed);
     ClassDB::bind_method(D_METHOD("get_seed"), &IslandGenerator::get_seed);
@@ -631,4 +632,75 @@ IslandGenerator::~IslandGenerator() {
     }
     //DESTRUCTOR
     gen_effects.clear();
+}
+
+void IslandGenerator::generate_chunk(Vector3i chunk_number) {
+    fnl->set_fractal_type(FastNoiseLite::FRACTAL_FBM);
+    fnl->set_frequency(cave_smoothness);
+    fnl->set_fractal_lacunarity(cave_lacunarity);
+    fnl->set_seed(seed);
+
+    auto yarnvoxel_singleton = YarnVoxel::get_singleton();
+    YVoxelChunk* chunk = yarnvoxel_singleton->get_chunk(chunk_number);
+    if (!chunk) return;
+
+    // Clear the chunk first
+    chunk->clear_all_points();
+
+    // Calculate world position of chunk start
+    Vector3 chunk_world_pos = chunk->get_world_pos_from_point_number(Vector3i(0, 0, 0));
+    
+    // Generate the chunk
+    for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
+        for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++) {
+            Vector2 xz_pos(chunk_world_pos.x + x, chunk_world_pos.z + z);
+            float terrainFloat = GetTerrainHeight(xz_pos, false);
+            float desiredHeight = (terrainFloat * height_multiplier);
+
+            for (int y = 0; y < YARNVOXEL_CHUNK_WIDTH; y++) {
+                Vector3i point_pos(x, y, z);
+                Vector3 world_pos = chunk_world_pos + Vector3(x, y, z);
+                
+                float density = CLAMP(world_pos.y - desiredHeight, -1, 1);
+                
+                // Apply 3D noise for caves if above minimum height
+                if (world_pos.y >= min_cave_height) {
+                    auto density3d = GetDensity3D(world_pos.x, world_pos.y, world_pos.z, density, desiredHeight);
+                    density = density3d.x;
+                }
+
+                // Set the point in the chunk
+                if (density < terrain_min) {
+                    uint8_t block_type = YarnVoxel::BlockType::STONE;
+                    
+                    // Determine block type based on height and water level
+                    if (world_pos.y <= water_level + 1.0f) {
+                        block_type = YarnVoxel::BlockType::SAND;
+                    }
+                    
+                    chunk->points[x][y][z] = YarnVoxelData::YVPointValue(block_type, floatToInt16(density));
+                }
+            }
+        }
+    }
+
+    // Post-process the chunk to smooth transitions and apply proper block types
+    for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
+        for (int y = 0; y < YARNVOXEL_CHUNK_WIDTH; y++) {
+            for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++) {
+                Vector3i point_pos(x, y, z);
+                auto& point = chunk->points[x][y][z];
+                
+                if (point.floatValue > ZERO_SHORT) continue;
+                
+                Vector3i surrounding = FindBiggestSurroundingIncidence(point_pos, chunk, false);
+                if (surrounding.x >= 3 && surrounding.y != 0 && static_cast<uint8_t>(surrounding.y) != point.byteValue) {
+                    point.byteValue = static_cast<uint8_t>(surrounding.y);
+                }
+            }
+        }
+    }
+
+    // Mark the chunk as dirty so it gets updated
+    yarnvoxel_singleton->set_dirty_chunk(chunk_number);
 }

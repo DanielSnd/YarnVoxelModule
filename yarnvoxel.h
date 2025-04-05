@@ -188,6 +188,8 @@ public:
 	void clear_all_chunks();
 
 	static bool IsPositionValid(Vector3i pos);
+
+	Vector3 find_air_position_with_clearance(Vector3 center_pos, int radius, float required_clearance);
 };
 
 VARIANT_ENUM_CAST(YarnVoxel::BlockType);

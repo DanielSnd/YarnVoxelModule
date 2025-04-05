@@ -393,6 +393,9 @@ void YarnVoxel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_perlin","pos_x","pos_y"), &YarnVoxel::perlin_noise);
 	ClassDB::bind_method(D_METHOD("get_perlin_3d","pos_x","pos_y","pos_z"), &YarnVoxel::perlin_noise_3d);
 
+	ClassDB::bind_method(D_METHOD("find_air_position_with_clearance", "center_pos", "radius", "required_clearance"), 
+		&YarnVoxel::find_air_position_with_clearance);
+
 	ADD_SIGNAL(MethodInfo("finished"));
 	ADD_SIGNAL(MethodInfo("destroyed_voxels", PropertyInfo(Variant::ARRAY, "blocks")));
 
@@ -444,6 +447,7 @@ void YarnVoxel::modify_voxel_area(Vector3i pos, float amount, int brushSize, int
 	Vector3i chunk_number = GetChunkNumberFromPosition(pos);
 	YVoxelChunk *modify_chunk = get_chunk(chunk_number);
 	bool modify_float = Math::abs(amount) > 0.001f;
+
 	for (int x = pos.x - brushSize; x <= pos.x + brushSize; ++x) {
 		for (int y = pos.y - brushSize; y <= pos.y + brushSize; ++y) {
 			for (int z = pos.z - brushSize; z <= pos.z + brushSize; ++z) {
@@ -451,15 +455,22 @@ void YarnVoxel::modify_voxel_area(Vector3i pos, float amount, int brushSize, int
 				float distance = Math::sqrt(static_cast<float>((x - pos.x) * (x - pos.x) + (y - pos.y) * (y - pos.y) + (z - pos.z) * (z - pos.z)));
 				if (distance < static_cast<float>(brushSize)) {
 					int16_t modifiedAmount = floatToInt16(amount);
-					Vector3i check_chunk_number = GetChunkNumberFromPosition(Vector3(x,y,z));
-					if (check_chunk_number != chunk_number) {
+
+				Vector3i check_chunk_number = GetChunkNumberFromPosition(Vector3(x,y,z));
+				if (check_chunk_number != chunk_number) {
 						modify_chunk->deferred_set_dirty();
-						chunk_number = check_chunk_number;
-						modify_chunk = get_chunk(chunk_number);
-					}
-					auto point_position = YarnVoxel::GetPointNumberFromPosition(Vector3(x,y,z));
+
+					chunk_number = check_chunk_number;
+					modify_chunk = get_chunk(chunk_number);
+				}
+
+
+				auto point_position = YarnVoxel::GetPointNumberFromPosition(Vector3(x,y,z));
 					if (modify_chunk->is_point_position_in_range_without_neighbours(point_position.x,point_position.y,point_position.z)) {
-						auto chunkpointvalue = modify_chunk->points[point_position.x][point_position.y][point_position.z];
+
+
+
+				auto chunkpointvalue = modify_chunk->points[point_position.x][point_position.y][point_position.z];
 						if (modify_float) {
 							if (modifiedAmount > 0 && chunkpointvalue.floatValue > INT16_MAX - modifiedAmount) {
 								chunkpointvalue.floatValue = INT16_MAX;
@@ -473,24 +484,121 @@ void YarnVoxel::modify_voxel_area(Vector3i pos, float amount, int brushSize, int
 									chunkpointvalue.byteValue = block_type > 0 ? static_cast<uint8_t>(block_type) : 2;
 							} else {
 								if (chunkpointvalue.floatValue > YARNVOXEL_TERRAIN_SURFACE)
-									chunkpointvalue.byteValue = 0;
-							}
+
+					chunkpointvalue.byteValue = 0;
+
+				}
 						} else {
 							if (block_type > 0) {
 								chunkpointvalue.byteValue = static_cast<uint8_t>(block_type);
 							}
 						}
 						//WARN_PRINT(vformat("Setting pos %s chunk %s point %s byte value %d float value %d",Vector3(x,y,z),chunk_number,point_position,chunkpointvalue.byteValue,chunkpointvalue.get_float_value_as_float()));
-						modify_chunk->points[point_position.x][point_position.y][point_position.z] = chunkpointvalue;
-						if(IsPointNumberInBoundary(point_position)) {
-							modify_chunk->AttemptSetDirtyNeighbour(point_position);
-						}
-					}
+				modify_chunk->points[point_position.x][point_position.y][point_position.z] = chunkpointvalue;
+
+
+				if(IsPointNumberInBoundary(point_position)) {
+					modify_chunk->AttemptSetDirtyNeighbour(point_position);
 				}
 			}
 		}
 	}
+
+	}
+
+	}
 	modify_chunk->deferred_set_dirty();
+}
+
+// Function to modify terrain by damaging voxels in a spherical area
+bool YarnVoxel::damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize) {
+	// Get the initial chunk at the center position
+	Vector3i chunk_number = GetChunkNumberFromPosition(pos);
+	YVoxelChunk *modify_chunk = nullptr;
+	if (!try_get_chunk(chunk_number,modify_chunk))
+		return false;
+
+	// Track destroyed blocks for event emission and chunks that need updating
+	Array emit_destroyed;
+	Vector<Vector3i> should_be_dirty_chunks;
+	bool damaged_any = false;
+
+	// Calculate squared brush size for more efficient distance checks
+	float brushSizeSquared = static_cast<float>(brushSize * brushSize);
+
+	// Iterate over a cubic area around the center point
+	for (int x = pos.x - brushSize; x <= pos.x + brushSize; ++x) {
+		for (int y = pos.y - brushSize; y <= pos.y + brushSize; ++y) {
+			for (int z = pos.z - brushSize; z <= pos.z + brushSize; ++z) {
+				// Use squared distance for efficiency (avoids square root)
+				float distanceSquared = static_cast<float>(
+					(x - pos.x) * (x - pos.x) + 
+					(y - pos.y) * (y - pos.y) + 
+					(z - pos.z) * (z - pos.z)
+				);
+
+				// Skip if outside the spherical brush area
+				if (distanceSquared >= brushSizeSquared) continue;
+
+				// Check if we've moved to a new chunk
+				Vector3i check_chunk_number = GetChunkNumberFromPosition(Vector3(x,y,z));
+				if (check_chunk_number != chunk_number) {
+					// Mark previous chunk as dirty if not already marked
+					if (!should_be_dirty_chunks.has(chunk_number))
+						should_be_dirty_chunks.append(chunk_number);
+					
+					// Switch to the new chunk
+					chunk_number = check_chunk_number;
+					modify_chunk = get_chunk(chunk_number);
+				}
+
+				// Get the point position within the chunk
+				auto point_position = YarnVoxel::GetPointNumberFromPosition(Vector3(x,y,z));
+				if (!modify_chunk->is_point_position_in_range_without_neighbours(point_position.x,point_position.y,point_position.z))
+					continue;
+
+				// Get the current voxel data
+				auto chunkpointvalue = modify_chunk->points[point_position.x][point_position.y][point_position.z];
+				
+				// Skip empty or air voxels
+				if (chunkpointvalue.byteValue == 0 || chunkpointvalue.floatValue > 0)
+					continue;
+
+				// Apply damage to the voxel
+				uint8_t damage_amount = amount < chunkpointvalue.health ? amount : chunkpointvalue.health;
+				chunkpointvalue.health -= damage_amount;
+				if (damage_amount > 0) damaged_any = true;
+
+				// If voxel is destroyed, reset it and track for event emission
+				if (chunkpointvalue.health <= 1) {
+					chunkpointvalue.health = 255;
+					emit_destroyed.append(Vector4i(x,y,z,chunkpointvalue.byteValue));
+					chunkpointvalue.byteValue = 0;
+					chunkpointvalue.floatValue = INT16_MAX;
+				}
+
+				// Update the voxel data
+				modify_chunk->points[point_position.x][point_position.y][point_position.z] = chunkpointvalue;
+
+				// If point is on chunk boundary, update neighboring chunks
+				if(IsPointNumberInBoundary(point_position)) {
+					modify_chunk->AttemptSetDirtyNeighbour(point_position);
+				}
+			}
+		}
+	}
+
+	// Emit event for destroyed blocks if any
+	if (emit_destroyed.size() > 0) {
+		emit_signal("destroyed_voxels",emit_destroyed);
+	}
+
+	// Mark all affected chunks as dirty
+	for (int i = 0; i < should_be_dirty_chunks.size(); ++i) {
+		set_dirty_chunk(should_be_dirty_chunks[i]);
+	}
+
+	return damaged_any;
 }
 
 Array YarnVoxel::find_closest_solid_point_to(Vector3 pos) {
@@ -527,134 +635,118 @@ Array YarnVoxel::find_closest_solid_point_to(Vector3 pos) {
 	return return_array;
 }
 
-// Function to modify terrain by digging with a configurable brush size
-bool YarnVoxel::damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize) {
-	// Iterate over a cubic area around the center point
-	Vector3i chunk_number = GetChunkNumberFromPosition(pos);
-	YVoxelChunk *modify_chunk = nullptr;
-	if (!try_get_chunk(chunk_number,modify_chunk))
-		return false;
-	Array emit_destroyed;
-	Vector<Vector3i> should_be_dirty_chunks;
-	bool damaged_any = false;
-	for (int x = pos.x - brushSize; x <= pos.x + brushSize; ++x) {
-		for (int y = pos.y - brushSize; y <= pos.y + brushSize; ++y) {
-			for (int z = pos.z - brushSize; z <= pos.z + brushSize; ++z) {
-				// Calculate the distance from the current voxel to the center point
-				float distance = Math::sqrt(static_cast<float>((x - pos.x) * (x - pos.x) + (y - pos.y) * (y - pos.y) + (z - pos.z) * (z - pos.z)));
-				if (distance < brushSize) {
-					Vector3i check_chunk_number = GetChunkNumberFromPosition(Vector3(x,y,z));
-					if (check_chunk_number != chunk_number) {
-						if (!should_be_dirty_chunks.has(chunk_number))
-							should_be_dirty_chunks.append(chunk_number);
-						chunk_number = check_chunk_number;
-						modify_chunk = get_chunk(chunk_number);
-					}
-					auto point_position = YarnVoxel::GetPointNumberFromPosition(Vector3(x,y,z));
-					if (modify_chunk->is_point_position_in_range_without_neighbours(point_position.x,point_position.y,point_position.z)) {
-						auto chunkpointvalue = modify_chunk->points[point_position.x][point_position.y][point_position.z];
-						if (chunkpointvalue.byteValue == 0 || chunkpointvalue.floatValue > 0) {
-							continue;
-						}
-						uint8_t damage_amount = amount < chunkpointvalue.health ? amount : chunkpointvalue.health;
-						chunkpointvalue.health -= damage_amount;
-						if (damage_amount > 0) damaged_any = true;
-						if (chunkpointvalue.health <= 1) {
-							chunkpointvalue.health = 255;
-							emit_destroyed.append(Vector4i(x,y,z,chunkpointvalue.byteValue));
-							chunkpointvalue.byteValue = 0;
-							chunkpointvalue.floatValue = INT16_MAX;
-						}
-						//WARN_PRINT(vformat("Setting pos %s chunk %s point %s byte value %d float value %d",Vector3(x,y,z),chunk_number,point_position,chunkpointvalue.byteValue,chunkpointvalue.get_float_value_as_float()));
-						modify_chunk->points[point_position.x][point_position.y][point_position.z] = chunkpointvalue;
-						if(IsPointNumberInBoundary(point_position)) {
-							modify_chunk->AttemptSetDirtyNeighbour(point_position);
-						}
-					}
-				}
-			}
-		}
-	}
-	if (emit_destroyed.size() > 0) {
-		emit_signal("destroyed_voxels",emit_destroyed);
-	}
-	for (int i = 0; i < should_be_dirty_chunks.size(); ++i) {
-		set_dirty_chunk(should_be_dirty_chunks[i]);
-	}
-	return damaged_any;
-}
-
-// Function to perform terrain smoothing using averaging
+// Function to perform terrain smoothing using weighted averaging in a spherical area
 void YarnVoxel::smooth_voxel_area(Vector3i pos, float amount, int brushSize) {
-	// Create a temporary voxel list to hold smoothed values
+	// Create temporary storage for smoothed values before applying them
 	Vector<Vector3> temp_wpos;
 	Vector<float> temp_grid;
 
-	// Iterate over a spherical area instead of a cubic one
+	// Calculate squared brush size for more efficient distance checks
+	float brushSizeSquared = static_cast<float>(brushSize * brushSize);
+
+	// First pass: Calculate smoothed values for all affected voxels
 	for (int x = pos.x - brushSize; x <= pos.x + brushSize; ++x) {
 		for (int y = pos.y - brushSize; y <= pos.y + brushSize; ++y) {
 			for (int z = pos.z - brushSize; z <= pos.z + brushSize; ++z) {
-				Vector3i currentPos(x, y, z);
-				if (currentPos.distance_to(pos) > brushSize) continue; // Skip voxels outside the sphere
+				// Check if current position is within the spherical brush area
+				float distanceSquared = static_cast<float>(
+					(x - pos.x) * (x - pos.x) + 
+					(y - pos.y) * (y - pos.y) + 
+					(z - pos.z) * (z - pos.z)
+				);
+				if (distanceSquared >= brushSizeSquared) continue;
 
-				auto initial_point_data = YarnVoxel::get_point_data_for_wpos(Vector3(x,y,y));
-				float current_float_as_float_value = initial_point_data.get_float_value_as_float();
-				if (current_float_as_float_value >= 0.0) continue;
-				// Calculate the average of neighboring voxels
+				// Get the current voxel data
+				auto initial_point_data = YarnVoxel::get_point_data_for_wpos(Vector3(x,y,z));
+				float current_float_value = initial_point_data.get_float_value_as_float();
+				
+				// Skip if current voxel is empty/air
+				if (current_float_value >= 0.0) continue;
+
+				// Calculate weighted average of neighboring voxels
 				float total = 0.0f;
-				float _count = 0.0f;
-				// Iterate over neighboring voxels in a cubic area
-				for (int nx = x - 2; nx <= x + 2; ++nx) {
-					for (int ny = y - 2; ny <= y + 2; ++ny) {
-						for (int nz = z - 2; nz <= z + 2; ++nz) {
+				float weight_sum = 0.0f;
+
+				// Sample neighboring voxels in a smaller radius
+				int sample_radius = 2;
+				for (int nx = x - sample_radius; nx <= x + sample_radius; ++nx) {
+					for (int ny = y - sample_radius; ny <= y + sample_radius; ++ny) {
+						for (int nz = z - sample_radius; nz <= z + sample_radius; ++nz) {
+							// Calculate distance-based weight for this neighbor
+							float neighbor_dist = static_cast<float>(
+								(nx - x) * (nx - x) + 
+								(ny - y) * (ny - y) + 
+								(nz - z) * (nz - z)
+							);
+							if (neighbor_dist > sample_radius * sample_radius) continue;
+
+							// Get neighbor's value and apply distance-based weight
 							auto point_data = YarnVoxel::get_point_data_for_wpos(Vector3(nx,ny,nz));
-							//if (point_data.byteValue != 0 && point_data.floatValue <= YARNVOXEL_TERRAIN_SURFACE) {
-								total += (point_data.get_float_value_as_float() + 1.0f);
-								_count++;
-							//}
+							float weight = 1.0f / (1.0f + Math::sqrt(neighbor_dist));
+							total += (point_data.get_float_value_as_float() + 1.0f) * weight;
+							weight_sum += weight;
 						}
 					}
 				}
 
-				// Ensure count is never zero to avoid division by zero
-				if (_count == 0) continue;
-				print_line(vformat("Pos %d,%d,%d initial float %.2f average found %.2f",x,y,z,current_float_as_float_value,((total / _count)-1.0f)));
-				// Calculate the smoothed value for the current voxel
+				// Skip if no valid neighbors found
+				if (weight_sum <= 0.0f) continue;
+
+				// Store position and calculated average for later application
 				temp_wpos.append(Vector3(x,y,z));
-				temp_grid.append((total / _count)-1.0f);
+				temp_grid.append((total / weight_sum) - 1.0f);
 			}
 		}
 	}
 
+	// Second pass: Apply smoothed values
 	YVoxelChunk *modify_chunk = nullptr;
-	Vector3i chunkNumber = FindChunkNumberFromPosition(pos);
-	if (try_get_chunk(chunkNumber,modify_chunk)) {
+	Vector3i current_chunk_number = FindChunkNumberFromPosition(pos);
+	if (try_get_chunk(current_chunk_number, modify_chunk)) {
 		modify_chunk->deferred_set_dirty();
-		for	(int i = 0; i < temp_wpos.size(); i++) {
-			if (i < temp_grid.size()) {
-				Vector3i current_chunk_number = FindChunkNumberFromPosition(pos);
-				if (current_chunk_number != chunkNumber) {
-					if (try_get_chunk(current_chunk_number,modify_chunk)) {
-						chunkNumber = current_chunk_number;
-						modify_chunk->deferred_set_dirty();
-					} else {
-						continue;
-					}
+
+		// Apply all calculated smoothed values
+		for (int i = 0; i < temp_wpos.size(); i++) {
+			if (i >= temp_grid.size()) break;
+
+			Vector3 current_pos = temp_wpos[i];
+			Vector3i chunk_number = FindChunkNumberFromPosition(current_pos);
+
+			// Handle chunk transitions
+			if (chunk_number != current_chunk_number) {
+				if (try_get_chunk(chunk_number, modify_chunk)) {
+					current_chunk_number = chunk_number;
+					modify_chunk->deferred_set_dirty();
+				} else {
+					continue;
 				}
-				if(modify_chunk != nullptr) {
-					const Vector3i blockNumber = FindPointNumberFromPosition(temp_wpos[i]);
-					if (IsPositionValid(blockNumber)) {
-						auto get_point_data = modify_chunk->points[blockNumber.x][blockNumber.y][blockNumber.z];
-						float current_float_value = get_point_data.get_float_value_as_float();
-						get_point_data.set_float_value_as_float(Math::lerp(current_float_value,temp_grid[i],amount));
-						if (get_point_data.floatValue > YARNVOXEL_TERRAIN_SURFACE && get_point_data.byteValue != 0) {
-							get_point_data.byteValue = 0;
-						}
-						modify_chunk->points[blockNumber.x][blockNumber.y][blockNumber.z] = get_point_data;
-						if(IsPointNumberInBoundary(blockNumber)) {
-							modify_chunk->AttemptSetDirtyNeighbour(blockNumber);
-						}
-					}
+			}
+
+			// Update voxel with smoothed value
+			const Vector3i block_number = FindPointNumberFromPosition(current_pos);
+			if (IsPositionValid(block_number)) {
+				auto point_data = modify_chunk->points[block_number.x][block_number.y][block_number.z];
+				float current_float_value = point_data.get_float_value_as_float();
+
+				// Calculate distance-based smoothing factor
+				float dist_to_center = current_pos.distance_to(Vector3(pos));
+				float smooth_factor = amount * (1.0f - (dist_to_center / static_cast<float>(brushSize)));
+				smooth_factor = CLAMP(smooth_factor, 0.0f, 1.0f);
+
+				// Interpolate between current and smoothed value
+				point_data.set_float_value_as_float(Math::lerp(current_float_value, temp_grid[i], smooth_factor));
+
+				// Update block type if necessary
+				if (point_data.floatValue > YARNVOXEL_TERRAIN_SURFACE && point_data.byteValue != 0) {
+					point_data.byteValue = 0;
+				}
+
+				// Apply the changes
+				modify_chunk->points[block_number.x][block_number.y][block_number.z] = point_data;
+
+				// Update neighboring chunks if necessary
+				if(IsPointNumberInBoundary(block_number)) {
+					modify_chunk->AttemptSetDirtyNeighbour(block_number);
 				}
 			}
 		}
@@ -879,4 +971,65 @@ YarnVoxel::~YarnVoxel() {
 	main_node_pointer = nullptr;
 	grass_mesh.unref();
 	grass_material.unref();
+}
+
+// Function to find a suitable air position with enough clearance
+Vector3 YarnVoxel::find_air_position_with_clearance(Vector3 center_pos, int radius, float required_clearance) {
+    // Convert required clearance to squared distance for efficiency
+    float clearance_squared = required_clearance * required_clearance;
+    
+    // Search in expanding spheres from the center position
+    for (int r = 0; r <= radius; r++) {
+        // Calculate search bounds for this radius
+        for (int x = center_pos.x - r; x <= center_pos.x + r; ++x) {
+            for (int y = center_pos.y - r; y <= center_pos.y + r; ++y) {
+                for (int z = center_pos.z - r; z <= center_pos.z + r; ++z) {
+                    Vector3 test_pos(x, y, z);
+                    
+                    // Skip positions outside our search sphere
+                    if (test_pos.distance_squared_to(center_pos) > radius * radius) {
+                        continue;
+                    }
+
+                    // First quick check - is this position itself air?
+                    auto point_data = get_point_data_for_wpos(test_pos);
+                    if (point_data.byteValue != 0 || point_data.floatValue <= YARNVOXEL_TERRAIN_SURFACE) {
+                        continue;
+                    }
+
+                    bool has_clearance = true;
+                    int check_radius = Math::ceil(required_clearance);
+
+                    // Efficient clearance check - only check points within the required clearance sphere
+                    for (int cx = x - check_radius; cx <= x + check_radius && has_clearance; ++cx) {
+                        for (int cy = y - check_radius; cy <= y + check_radius && has_clearance; ++cy) {
+                            for (int cz = z - check_radius; cz <= z + check_radius && has_clearance; ++cz) {
+                                Vector3 check_pos(cx, cy, cz);
+                                
+                                // Skip points outside our clearance sphere
+                                if (check_pos.distance_squared_to(test_pos) > clearance_squared) {
+                                    continue;
+                                }
+
+                                // Check if this position is solid
+                                auto check_data = get_point_data_for_wpos(check_pos);
+                                if (check_data.byteValue != 0 || check_data.floatValue <= YARNVOXEL_TERRAIN_SURFACE) {
+                                    has_clearance = false;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // If we found a position with enough clearance, return it
+                    if (has_clearance) {
+                        return test_pos;
+                    }
+                }
+            }
+        }
+    }
+
+    // If no suitable position found, return the center position
+    return center_pos;
 }
