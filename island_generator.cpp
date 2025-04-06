@@ -737,7 +737,7 @@ void IslandGenerator::generate_chunk(Vector3i chunk_number, bool force_cave, boo
     yarnvoxel_singleton->set_dirty_chunk(chunk_number);
 }
 
-Vector2 IslandGenerator::GetRoomNoise(float x, float z) const {
+Vector2 IslandGenerator::GetRoomNoise(float x,float y, float z) const {
     if (!room_noise.is_valid()) {
         const_cast<IslandGenerator*>(this)->room_noise = Ref<FastNoiseLite>(memnew(FastNoiseLite));
         room_noise->set_seed(seed + 12345); // Different seed for room generation
@@ -746,14 +746,14 @@ Vector2 IslandGenerator::GetRoomNoise(float x, float z) const {
         room_noise->set_fractal_octaves(2); // Fewer octaves for smoother rooms
     }
     
-    float room_value = room_noise->get_noise_2d(x, z);
+    float room_value = room_noise->get_noise_3d(x, y, z);
     float floor_height = room_noise->get_noise_2d(x * floor_smoothness, z * floor_smoothness);
     return Vector2(room_value, floor_height);
 }
 
 Vector2 IslandGenerator::GetRoomDensityModifier(const Vector3& world_pos, float base_density) const {
     // Get room noise at this position
-    Vector2 room_data = GetRoomNoise(world_pos.x, world_pos.z);
+    Vector2 room_data = GetRoomNoise(world_pos.x, world_pos.y, world_pos.z);
     float room_value = room_data.x;
     float floor_height = room_data.y;
     
@@ -768,11 +768,11 @@ Vector2 IslandGenerator::GetRoomDensityModifier(const Vector3& world_pos, float 
         
         // Make the floor and ceiling more flat
         if (distance_from_floor < 2.0f) { // Floor region
-            base_density = Math::lerp(base_density, -1.0f, 0.8f); // Make more solid
+            base_density = Math::lerp(base_density, -1.0f, 1.0f - room_value * 0.5f); // Make more solid
         } else if (distance_from_floor > ceiling_height) { // Ceiling region
-            base_density = Math::lerp(base_density, -1.0f, 0.8f); // Make more solid
+            //base_density = Math::lerp(base_density, -1.0f, 0.8f); // Make more solid
         } else { // Middle of the room
-            base_density = Math::lerp(base_density, 1.0f, 0.8f); // Make more hollow
+            base_density = Math::lerp(base_density, 1.0f, room_value * 0.32f); // Make more hollow
         }
     }
     
