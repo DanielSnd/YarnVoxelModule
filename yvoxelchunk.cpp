@@ -26,12 +26,45 @@
 //
 
 void YVoxelChunk::AttemptSetDirtyNeighbour(Vector3i pointHit) const {
-    pointHit = get_world_pos_from_point_number(pointHit);
-    for (auto i : YarnVoxelData::SurroundingAndUpDownTable) {
-        auto cchunkNumber = YarnVoxel::GetChunkNumberFromPosition(pointHit + (i * 3));
-        if (cchunkNumber != chunk_number) YarnVoxel::get_singleton()->set_dirty_chunk(cchunkNumber);
+    // Check which boundaries we're on and mark appropriate neighbors as dirty
+    Vector3i offset;
+    
+    // Check X boundaries
+    if (pointHit.x == 0) {
+        offset = Vector3i(-1, 0, 0);
+        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+    } else if (pointHit.x == YARNVOXEL_CHUNK_WIDTH - 1) {
+        offset = Vector3i(1, 0, 0);
+        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+    }
+    
+    // Check Y boundaries
+    if (pointHit.y == 0) {
+        offset = Vector3i(0, -1, 0);
+        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+    } else if (pointHit.y == YARNVOXEL_CHUNK_HEIGHT - 1) {
+        offset = Vector3i(0, 1, 0);
+        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+    }
+    
+    // Check Z boundaries
+    if (pointHit.z == 0) {
+        offset = Vector3i(0, 0, -1);
+        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+    } else if (pointHit.z == YARNVOXEL_CHUNK_WIDTH - 1) {
+        offset = Vector3i(0, 0, 1);
+        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+    }
+    
+    // Check corners if we're on multiple boundaries
+    if ((pointHit.x == 0 || pointHit.x == YARNVOXEL_CHUNK_WIDTH - 1) && 
+        (pointHit.z == 0 || pointHit.z == YARNVOXEL_CHUNK_WIDTH - 1)) {
+        offset.x = (pointHit.x == 0) ? -1 : 1;
+        offset.z = (pointHit.z == 0) ? -1 : 1;
+        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
     }
 }
+
 void YVoxelChunk::add_triangle(const YarnVoxelData::YVTriangleData &yv_triangle_data,SurfaceTool *surface_tool) {
     surface_tool->set_uv(Vector2(0, 0));
     surface_tool->set_smooth_group(1);
@@ -319,17 +352,39 @@ void YVoxelChunk::generate() {
     }
     auto vertex_array = &surface_tool->get_vertex_array();
     for (auto triangle : mesh_triangles) {
-        //auto blockType = static_cast<YarnVoxel::BlockType>(triangle.desiredByte);
         Color desiredColor = YarnVoxelData::BlockTypeToColor[VariantUtilityFunctions::clampi(triangle.desiredByte,0,10)];
         desiredColor.a = YarnVoxelData::ByteToFloat01[triangle.health];
-        //print_line("adding triangle ",i," desired color ", desiredColor," blocktype ",triangle.desiredByte);
+
         surface_tool->set_uv(Vector2(0, 0));
         surface_tool->set_smooth_group(1);
+
+        // Calculate normal from density field gradient at each vertex
+        auto calc_normal = [this](const Vector3& vertex_pos) -> Vector3 {
+            Vector3i point_pos = YarnVoxel::GetPointNumberFromPosition(vertex_pos + bottom_corner_world_pos);
+            
+            // Sample densities in 6 directions using cached points data
+            float dx = int16ToFloat(points[point_pos.x + 1][point_pos.y][point_pos.z].floatValue) - 
+                      int16ToFloat(points[point_pos.x - 1][point_pos.y][point_pos.z].floatValue);
+            float dy = int16ToFloat(points[point_pos.x][point_pos.y + 1][point_pos.z].floatValue) - 
+                      int16ToFloat(points[point_pos.x][point_pos.y - 1][point_pos.z].floatValue);
+            float dz = int16ToFloat(points[point_pos.x][point_pos.y][point_pos.z + 1].floatValue) - 
+                      int16ToFloat(points[point_pos.x][point_pos.y][point_pos.z - 1].floatValue);
+            
+            return Vector3(-dx, -dy, -dz).normalized();
+        };
 
         auto* index1_pointer = output_pos_to_index.getptr(triangle.v1);
         int index1;
 
         surface_tool->set_color(desiredColor);
+        Vector3 normal1 = calc_normal(triangle.v1);
+        surface_tool->set_normal(normal1);
+        Vector3 tangent = normal1.cross(Vector3(0, 1, 0));
+        if (tangent.length_squared() < 0.001f) {
+            tangent = normal1.cross(Vector3(0, 0, 1));
+        }
+        tangent.normalize();
+        surface_tool->set_tangent(Plane(tangent, 1.0f));
 
         if (index1_pointer == nullptr) {
             index1 = static_cast<int>(vertex_array->size());
@@ -341,11 +396,19 @@ void YVoxelChunk::generate() {
                 auto vertexFound = (&(vertex_array->operator[](index1)));
                 vertexFound->color = desiredColor;
             }
-            //if (triangle.desiredByte != 0) color_index_1 = true;
         }
 
         auto* index2_pointer = output_pos_to_index.getptr(triangle.v2);
         int index2;
+        Vector3 normal2 = calc_normal(triangle.v2);
+        surface_tool->set_normal(normal2);
+        tangent = normal2.cross(Vector3(0, 1, 0));
+        if (tangent.length_squared() < 0.001f) {
+            tangent = normal2.cross(Vector3(0, 0, 1));
+        }
+        tangent.normalize();
+        surface_tool->set_tangent(Plane(tangent, 1.0f));
+
         if (index2_pointer == nullptr) {
             index2 = static_cast<int>(surface_tool->get_vertex_array().size());
             surface_tool->add_vertex(triangle.v2);
@@ -356,11 +419,19 @@ void YVoxelChunk::generate() {
                 auto vertexFound = (&(vertex_array->operator[](index2)));
                 vertexFound->color = desiredColor;
             }
-            //if (triangle.desiredByte != 0) color_index_2 = true;
         }
 
         auto* index3_pointer = output_pos_to_index.getptr(triangle.v3);
         int index3;
+        Vector3 normal3 = calc_normal(triangle.v3);
+        surface_tool->set_normal(normal3);
+        tangent = normal3.cross(Vector3(0, 1, 0));
+        if (tangent.length_squared() < 0.001f) {
+            tangent = normal3.cross(Vector3(0, 0, 1));
+        }
+        tangent.normalize();
+        surface_tool->set_tangent(Plane(tangent, 1.0f));
+
         if (index3_pointer == nullptr) {
             index3 = static_cast<int>(surface_tool->get_vertex_array().size());
             surface_tool->add_vertex(triangle.v3);
@@ -371,7 +442,6 @@ void YVoxelChunk::generate() {
                 auto vertexFound = (&(vertex_array->operator[](index3)));
                 vertexFound->color = desiredColor;
             }
-            //if (triangle.desiredByte != 0) color_index_3 = true;
         }
 
         surface_tool->add_index(index1);
@@ -380,11 +450,6 @@ void YVoxelChunk::generate() {
     }
 
     if (output_pos_to_index.size() >= 3) {
-        //surface_tool->optimize_indices_for_cache();
-        //int triangle_count = static_cast<int>(surface_tool->get_vertex_array().size());
-        surface_tool->generate_normals();
-        surface_tool->generate_tangents();
-
         auto mesharray = surface_tool->commit();
         auto array_index_length = mesharray->surface_get_array_index_len(0);
         mesharray->set_meta(SNAME("_skip_save_"), true);
@@ -858,6 +923,28 @@ bool YVoxelChunk::is_point_position_in_range_without_neighbours(int x, int y, in
 }
 bool YVoxelChunk::is_point_position_in_range(int x, int y, int z) {
     return (x >= 0 && x < YARNVOXEL_CHUNK_WIDTH + 1 && y >= 0 && y < YARNVOXEL_CHUNK_HEIGHT + 1 && z >= 0 && z  < YARNVOXEL_CHUNK_WIDTH + 1);
+}
+
+float YVoxelChunk::get_density_at_point(Vector3i point_pos) {
+    // Check if point is in current chunk's range
+    if (is_point_position_in_range(point_pos.x, point_pos.y, point_pos.z)) {
+        return int16ToFloat(points[point_pos.x][point_pos.y][point_pos.z].floatValue);
+    }
+    
+    // Point is in a neighboring chunk
+    Vector3 world_pos = get_world_pos_from_point_number(point_pos);
+    Vector3i neighbor_chunk_number = YarnVoxel::GetChunkNumberFromPosition(world_pos);
+    YVoxelChunk* neighbor_chunk = nullptr;
+    
+    if (YarnVoxel::try_get_chunk(neighbor_chunk_number, neighbor_chunk)) {
+        Vector3i local_pos = YarnVoxel::GetPointNumberFromPosition(world_pos);
+        if (neighbor_chunk->is_point_position_in_range(local_pos.x, local_pos.y, local_pos.z)) {
+            return int16ToFloat(neighbor_chunk->points[local_pos.x][local_pos.y][local_pos.z].floatValue);
+        }
+    }
+    
+    // If we can't get the neighbor data, return a default value
+    return YARNVOXEL_TERRAIN_SURFACE;
 }
 
 void YVoxelChunk::_bind_methods() {

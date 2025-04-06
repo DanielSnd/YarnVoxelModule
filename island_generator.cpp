@@ -28,7 +28,7 @@ float IslandGenerator::GetTerrainHeight(Vector2 chunkPos, bool doDebug = false) 
 void IslandGenerator::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_terrain_height","chunkPos","doDebug"), &IslandGenerator::GetTerrainHeight,DEFVAL(false));
     ClassDB::bind_method(D_METHOD("generate_island","world_pos"), &IslandGenerator::generate_island,DEFVAL(Vector3(0,0,0)));
-    ClassDB::bind_method(D_METHOD("generate_chunk", "chunk_number"), &IslandGenerator::generate_chunk);
+    ClassDB::bind_method(D_METHOD("generate_chunk", "chunk_number", "force_cave", "smooth_points"), &IslandGenerator::generate_chunk,DEFVAL(false),DEFVAL(false));
 
     ClassDB::bind_method(D_METHOD("set_seed", "seed"), &IslandGenerator::set_seed);
     ClassDB::bind_method(D_METHOD("get_seed"), &IslandGenerator::get_seed);
@@ -89,6 +89,24 @@ void IslandGenerator::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_color_ramp"), &IslandGenerator::get_color_ramp);
 
     ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "color_ramp", PROPERTY_HINT_RESOURCE_TYPE, "Gradient"), "set_color_ramp", "get_color_ramp");
+
+    ADD_GROUP("Cave Rooms", "room_");
+    
+    ClassDB::bind_method(D_METHOD("get_room_noise_scale"), &IslandGenerator::get_room_noise_scale);
+    ClassDB::bind_method(D_METHOD("set_room_noise_scale", "value"), &IslandGenerator::set_room_noise_scale, DEFVAL(0.005f));
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "room_noise_scale", PROPERTY_HINT_RANGE, "0.001,0.1,0.001"), "set_room_noise_scale", "get_room_noise_scale");
+    
+    ClassDB::bind_method(D_METHOD("get_room_threshold"), &IslandGenerator::get_room_threshold);
+    ClassDB::bind_method(D_METHOD("set_room_threshold", "value"), &IslandGenerator::set_room_threshold, DEFVAL(0.6f));
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "room_threshold", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_room_threshold", "get_room_threshold");
+    
+    ClassDB::bind_method(D_METHOD("get_floor_smoothness"), &IslandGenerator::get_floor_smoothness);
+    ClassDB::bind_method(D_METHOD("set_floor_smoothness", "value"), &IslandGenerator::set_floor_smoothness, DEFVAL(0.3f));
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "room_floor_smoothness", PROPERTY_HINT_RANGE, "0.1,1.0,0.1"), "set_floor_smoothness", "get_floor_smoothness");
+    
+    ClassDB::bind_method(D_METHOD("get_room_height"), &IslandGenerator::get_room_height);
+    ClassDB::bind_method(D_METHOD("set_room_height", "value"), &IslandGenerator::set_room_height, DEFVAL(8));
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "room_height", PROPERTY_HINT_RANGE, "4,32,1"), "set_room_height", "get_room_height");
 }
 
 Array IslandGenerator::get_effects() const {
@@ -634,7 +652,7 @@ IslandGenerator::~IslandGenerator() {
     gen_effects.clear();
 }
 
-void IslandGenerator::generate_chunk(Vector3i chunk_number) {
+void IslandGenerator::generate_chunk(Vector3i chunk_number, bool force_cave, bool smooth_points) {
     fnl->set_fractal_type(FastNoiseLite::FRACTAL_FBM);
     fnl->set_frequency(cave_smoothness);
     fnl->set_fractal_lacunarity(cave_lacunarity);
@@ -654,19 +672,24 @@ void IslandGenerator::generate_chunk(Vector3i chunk_number) {
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++) {
             Vector2 xz_pos(chunk_world_pos.x + x, chunk_world_pos.z + z);
-            float terrainFloat = GetTerrainHeight(xz_pos, false);
+            float terrainFloat = force_cave ? 0 : GetTerrainHeight(xz_pos, false);
             float desiredHeight = (terrainFloat * height_multiplier);
 
-            for (int y = 0; y < YARNVOXEL_CHUNK_WIDTH; y++) {
+            for (int y = 0; y < YARNVOXEL_CHUNK_HEIGHT; y++) {
                 Vector3i point_pos(x, y, z);
                 Vector3 world_pos = chunk_world_pos + Vector3(x, y, z);
                 
                 float density = CLAMP(world_pos.y - desiredHeight, -1, 1);
                 
                 // Apply 3D noise for caves if above minimum height
-                if (world_pos.y >= min_cave_height) {
+                if (world_pos.y >= min_cave_height || force_cave) {
                     auto density3d = GetDensity3D(world_pos.x, world_pos.y, world_pos.z, density, desiredHeight);
                     density = density3d.x;
+                    
+                    // Apply room generation if we're in cave territory
+                    if (density3d.y > 0.1f || force_cave) {
+                        density = GetRoomDensityModifier(world_pos, density);
+                    }
                 }
 
                 // Set the point in the chunk
@@ -674,7 +697,7 @@ void IslandGenerator::generate_chunk(Vector3i chunk_number) {
                     uint8_t block_type = YarnVoxel::BlockType::STONE;
                     
                     // Determine block type based on height and water level
-                    if (world_pos.y <= water_level + 1.0f) {
+                    if (!force_cave && world_pos.y <= water_level + 1.0f) {
                         block_type = YarnVoxel::BlockType::SAND;
                     }
                     
@@ -684,18 +707,20 @@ void IslandGenerator::generate_chunk(Vector3i chunk_number) {
         }
     }
 
-    // Post-process the chunk to smooth transitions and apply proper block types
-    for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
-        for (int y = 0; y < YARNVOXEL_CHUNK_WIDTH; y++) {
-            for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++) {
-                Vector3i point_pos(x, y, z);
-                auto& point = chunk->points[x][y][z];
-                
-                if (point.floatValue > ZERO_SHORT) continue;
-                
-                Vector3i surrounding = FindBiggestSurroundingIncidence(point_pos, chunk, false);
-                if (surrounding.x >= 3 && surrounding.y != 0 && static_cast<uint8_t>(surrounding.y) != point.byteValue) {
-                    point.byteValue = static_cast<uint8_t>(surrounding.y);
+    if (smooth_points) {
+        // Post-process the chunk to smooth transitions and apply proper block types
+        for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
+            for (int y = 0; y < YARNVOXEL_CHUNK_WIDTH; y++) {
+                for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++) {
+                    Vector3i point_pos(x, y, z);
+                    auto& point = chunk->points[x][y][z];
+                    
+                    if (point.floatValue > ZERO_SHORT) continue;
+                    
+                    Vector3i surrounding = FindBiggestSurroundingIncidence(point_pos, chunk, false);
+                    if (surrounding.x >= 3 && surrounding.y != 0 && static_cast<uint8_t>(surrounding.y) != point.byteValue) {
+                        point.byteValue = static_cast<uint8_t>(surrounding.y);
+                    }
                 }
             }
         }
@@ -703,4 +728,46 @@ void IslandGenerator::generate_chunk(Vector3i chunk_number) {
 
     // Mark the chunk as dirty so it gets updated
     yarnvoxel_singleton->set_dirty_chunk(chunk_number);
+}
+
+Vector2 IslandGenerator::GetRoomNoise(float x, float z) const {
+    if (!room_noise.is_valid()) {
+        const_cast<IslandGenerator*>(this)->room_noise = Ref<FastNoiseLite>(memnew(FastNoiseLite));
+        room_noise->set_seed(seed + 12345); // Different seed for room generation
+        room_noise->set_frequency(room_noise_scale);
+        room_noise->set_fractal_type(FastNoiseLite::FRACTAL_FBM);
+        room_noise->set_fractal_octaves(2); // Fewer octaves for smoother rooms
+    }
+    
+    float room_value = room_noise->get_noise_2d(x, z);
+    float floor_height = room_noise->get_noise_2d(x * floor_smoothness, z * floor_smoothness);
+    return Vector2(room_value, floor_height);
+}
+
+float IslandGenerator::GetRoomDensityModifier(const Vector3& world_pos, float base_density) const {
+    // Get room noise at this position
+    Vector2 room_data = GetRoomNoise(world_pos.x, world_pos.z);
+    float room_value = room_data.x;
+    float floor_height = room_data.y;
+    
+    // Check if we're in a potential room area
+    if (room_value > room_threshold) {
+        // Calculate the room's local floor height
+        float room_floor = floor_height * room_height;
+        
+        // Create flat-ish floor and ceiling
+        float distance_from_floor = Math::abs(Math::fmod(world_pos.y - room_floor, room_height));
+        float ceiling_height = room_height * 0.7f; // Ceiling is 70% of room height
+        
+        // Make the floor and ceiling more flat
+        if (distance_from_floor < 2.0f) { // Floor region
+            base_density = Math::lerp(base_density, -1.0f, 0.8f); // Make more solid
+        } else if (distance_from_floor > ceiling_height) { // Ceiling region
+            base_density = Math::lerp(base_density, -1.0f, 0.8f); // Make more solid
+        } else { // Middle of the room
+            base_density = Math::lerp(base_density, 1.0f, 0.8f); // Make more hollow
+        }
+    }
+    
+    return base_density;
 }

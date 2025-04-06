@@ -177,6 +177,8 @@ public:
 
     int FindCubeConfiguration(int x, int y, int z);
 
+    float get_density_at_point(Vector3i point_pos);
+
     YVoxelChunk();
     ~YVoxelChunk();
 };

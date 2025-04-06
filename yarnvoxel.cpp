@@ -102,6 +102,23 @@ int16_t YarnVoxel::FindFloatValueForPos(Vector3 pos) {
 	return INT16_MAX;
 }
 
+// ReSharper disable once CppMemberFunctionMayBeStatic
+uint8_t YarnVoxel::FindHealthValueForPos(Vector3 pos) {
+	const Vector3i chunkNumber = FindChunkNumberFromPosition(pos);
+	const auto ic = get_chunk(chunkNumber);
+	if(ic != nullptr){
+		const Vector3i blockNumber =	FindPointNumberFromPosition(Vector3(static_cast<float>(pos.x),static_cast<float>(pos.y),static_cast<float>(pos.z)));
+		if (IsPositionValid(blockNumber)) {
+			return ic->points[blockNumber.x][blockNumber.y][blockNumber.z].health;
+		}
+	}
+	return 0;
+}
+
+float YarnVoxel::FindFloatValueForPosFloat(Vector3 pos) {
+	return int16ToFloat(FindFloatValueForPos(pos));
+}
+
 int YarnVoxel::FindBlockTypeForPos(Vector3 pos) {
 	const Vector3i chunkNumber = FindChunkNumberFromPosition(pos);
 	const auto ic = get_chunk(chunkNumber);
@@ -249,13 +266,31 @@ render_mode depth_draw_opaque,cull_back;
 uniform sampler2D edge_noise:source_color;
 uniform sampler2D gradient:source_color;
 uniform float water_level = -1.8;
+uniform vec3 hit_position = vec3(0.0);
+uniform float hit_intensity = 0.0;
+uniform float hit_radius = 5.0;
+varying float hit_effect;
 varying vec3 uv1_edge_noise_pos; varying vec3 uv1_power_normal;
 varying vec3 world_pos; varying vec3 sand_tex; varying vec3 rock_tex;
 varying vec3 dirt_tex; varying vec3 grass_tex; varying vec3 water_tex;
 
 void vertex() {
 	uv1_power_normal = pow(abs(mat3(MODEL_MATRIX) * NORMAL),vec3(0.5));
-	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0f)).xyz;
+	vec3 vertex_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	world_pos = vertex_world_pos;
+	
+	// Calculate hit effect
+	float dist_to_hit = distance(vertex_world_pos, hit_position);
+	float hit_factor = 1.0 - smoothstep(0.0, hit_radius, dist_to_hit);
+	hit_effect = hit_factor * hit_intensity;
+	
+	// Apply wobble displacement
+	if (hit_effect > 0.0) {
+		float wobble = sin(dist_to_hit * 3.0 - TIME * 10.0) * hit_effect * 0.5;
+		vec3 dir_to_hit = normalize(vertex_world_pos - hit_position);
+		VERTEX += (NORMAL * wobble + dir_to_hit * wobble * 0.5);
+	}
+	
 	uv1_edge_noise_pos = world_pos * 0.15;
 	uv1_power_normal/=dot(uv1_power_normal,vec3(1.0));
 	sand_tex = texture(gradient,vec2(0.256,0.5)).rgb;
@@ -283,7 +318,15 @@ void fragment() {
 	vec3 mixed_previouswithrock = mix(mixed_grassdirt,rock_tex,mask_to_mix(COLOR.b,0.301,0.325));
 	vec3 mixed_previouswithsand = mix(mixed_previouswithrock,sand_tex,mask_to_mix(COLOR.r + (original_noisy_blobs * 0.4) ,0.31,0.325));
 	vec3 mixed_previouswithwater = mix(mixed_previouswithsand,water_tex,mask_to_mix((1.0-smoothstep(water_level,water_level+0.2,world_pos.y)) + (original_noisy_blobs * 0.8) ,0.58,0.325));
-	ALBEDO = vec3(mixed_previouswithwater);
+	
+	// Add hit effect glow
+	vec3 final_color = mixed_previouswithwater;
+	if (hit_effect > 0.0) {
+		float glow = hit_effect * 0.5;
+		final_color = mix(final_color, vec3(1.0, 0.2, 0.1), glow);
+	}
+	
+	ALBEDO = final_color;
 }
 )");
 			preview_material->set_shader(preview_material_shader);
@@ -329,11 +372,16 @@ void YarnVoxel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_hash_key","worldPostion"), &YarnVoxel::HashKey);
 
 	ClassDB::bind_method(D_METHOD("damage_voxel_area","world_pos","amount","size"), &YarnVoxel::damage_voxel_area,DEFVAL(30),DEFVAL(1));
+	ClassDB::bind_method(D_METHOD("smooth_voxel_area","world_pos","amount","size"), &YarnVoxel::smooth_voxel_area,DEFVAL(1),DEFVAL(1));
 	//void YarnVoxel::damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize) {
 
-	ClassDB::bind_method(D_METHOD("get_float_value","worldPostion"), &YarnVoxel::FindFloatValueForPos);
+	ClassDB::bind_method(D_METHOD("get_float_value","worldPostion"), &YarnVoxel::FindFloatValueForPosFloat);
+	ClassDB::bind_method(D_METHOD("get_health_value","worldPostion"), &YarnVoxel::FindHealthValueForPos);
 	ClassDB::bind_method(D_METHOD("get_block_type","worldPostion"), &YarnVoxel::FindBlockTypeForPos);
 
+	ClassDB::bind_method(D_METHOD("get_dirty_chunks_queued"), &YarnVoxel::get_dirty_chunks_queued);
+	ClassDB::bind_method(D_METHOD("dirty_chunk_queue_info"), &YarnVoxel::dirty_chunk_queue_info);
+	
 	// static Vector2i CalculateGridPosition(Vector3 worldPosition);
 	// static Vector3 CalculateCellCenterPosition(Vector2i gridPosition);
 	// static Vector3 GetBottomCornerForChunkInNumber(Vector3i ChunkNumber);
@@ -366,7 +414,7 @@ void YarnVoxel::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL,"is_debugging_chunk",PROPERTY_HINT_NONE),"set_is_debugging_chunk","get_is_debugging_chunk");
 
 
-	ClassDB::bind_method(D_METHOD("find_closest_solid_point_to","world_position"), &YarnVoxel::find_closest_solid_point_to);
+	ClassDB::bind_method(D_METHOD("find_closest_solid_point_to","world_position", "search_radius"), &YarnVoxel::find_closest_solid_point_to, DEFVAL(2));
 
 	ClassDB::bind_method(D_METHOD("get_debugging_chunk"), &YarnVoxel::get_debugging_chunk);
 	ClassDB::bind_method(D_METHOD("set_debugging_chunk","debug_chunk"), &YarnVoxel::set_debugging_chunk);
@@ -500,7 +548,7 @@ void YarnVoxel::modify_voxel_area(Vector3i pos, float amount, int brushSize, int
 				if(IsPointNumberInBoundary(point_position)) {
 					modify_chunk->AttemptSetDirtyNeighbour(point_position);
 				}
-			}
+			}	
 		}
 	}
 
@@ -522,6 +570,7 @@ bool YarnVoxel::damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize) {
 	Array emit_destroyed;
 	Vector<Vector3i> should_be_dirty_chunks;
 	bool damaged_any = false;
+	bool damaged_current_chunk = false;
 
 	// Calculate squared brush size for more efficient distance checks
 	float brushSizeSquared = static_cast<float>(brushSize * brushSize);
@@ -544,9 +593,9 @@ bool YarnVoxel::damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize) {
 				Vector3i check_chunk_number = GetChunkNumberFromPosition(Vector3(x,y,z));
 				if (check_chunk_number != chunk_number) {
 					// Mark previous chunk as dirty if not already marked
-					if (!should_be_dirty_chunks.has(chunk_number))
+					if (damaged_current_chunk && !should_be_dirty_chunks.has(chunk_number))
 						should_be_dirty_chunks.append(chunk_number);
-					
+					damaged_current_chunk = false;
 					// Switch to the new chunk
 					chunk_number = check_chunk_number;
 					modify_chunk = get_chunk(chunk_number);
@@ -561,17 +610,27 @@ bool YarnVoxel::damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize) {
 				auto chunkpointvalue = modify_chunk->points[point_position.x][point_position.y][point_position.z];
 				
 				// Skip empty or air voxels
-				if (chunkpointvalue.byteValue == 0 || chunkpointvalue.floatValue > 0)
+				if (chunkpointvalue.byteValue == 0 || chunkpointvalue.get_float_value_as_float() > 0.01f)
 					continue;
 
 				// Apply damage to the voxel
 				uint8_t damage_amount = amount < chunkpointvalue.health ? amount : chunkpointvalue.health;
 				chunkpointvalue.health -= damage_amount;
-				if (damage_amount > 0) damaged_any = true;
+				if (damage_amount > 0) {
+					damaged_any = true;
+					damaged_current_chunk = true;
+					// Lerp the float value towards 0 based on remaining health percentage
+					float current_float = chunkpointvalue.get_float_value_as_float();
+					float health_percent = static_cast<float>(chunkpointvalue.health) / 255.0f;
+					float target_float = Math::lerp(0.0f, current_float, health_percent);
+					chunkpointvalue.set_float_value_as_float(target_float);
+				}
 
+				bool was_destroyed = false;
 				// If voxel is destroyed, reset it and track for event emission
 				if (chunkpointvalue.health <= 1) {
 					chunkpointvalue.health = 255;
+					was_destroyed = true;
 					emit_destroyed.append(Vector4i(x,y,z,chunkpointvalue.byteValue));
 					chunkpointvalue.byteValue = 0;
 					chunkpointvalue.floatValue = INT16_MAX;
@@ -593,15 +652,21 @@ bool YarnVoxel::damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize) {
 		emit_signal("destroyed_voxels",emit_destroyed);
 	}
 
-	// Mark all affected chunks as dirty
-	for (int i = 0; i < should_be_dirty_chunks.size(); ++i) {
-		set_dirty_chunk(should_be_dirty_chunks[i]);
+	if (damaged_any) {
+		if (should_be_dirty_chunks.size() > 0) {
+			// Mark all affected chunks as dirty
+			for (int i = 0; i < should_be_dirty_chunks.size(); ++i) {
+				set_dirty_chunk(should_be_dirty_chunks[i]);
+			}
+		} else {
+			set_dirty_chunk(chunk_number);
+		}
 	}
 
 	return damaged_any;
 }
 
-Array YarnVoxel::find_closest_solid_point_to(Vector3 pos) {
+Array YarnVoxel::find_closest_solid_point_to(Vector3 pos, int search_radius) {
 	Array return_array;
 	Vector3i chunk_number = GetChunkNumberFromPosition(pos);
 	YVoxelChunk *modify_chunk = nullptr;
@@ -610,26 +675,40 @@ Array YarnVoxel::find_closest_solid_point_to(Vector3 pos) {
 	float best_distance = 999999.0f;
 	bool found_any = false;
 	Vector3i best_solid_pos = Vector3i(0,0,0);
-	for (int x = pos.x - 2; x <= pos.x + 2; ++x) {
-		for (int y = pos.y - 2; y <= pos.y + 2; ++y) {
-			for (int z = pos.z - 2; z <= pos.z + 2; ++z) {
+	
+	// Search in a cube with sides of length 2*search_radius + 1
+	for (int x = pos.x - search_radius; x <= pos.x + search_radius; ++x) {
+		for (int y = pos.y - search_radius; y <= pos.y + search_radius; ++y) {
+			for (int z = pos.z - search_radius; z <= pos.z + search_radius; ++z) {
 				Vector3 current_checking = Vector3(x,y,z);
 				auto found_chunk_number = GetChunkNumberFromPosition(current_checking);
-				if (found_chunk_number != chunk_number) continue;
+				
+				// If we're in a different chunk, try to get that chunk
+				YVoxelChunk* check_chunk = modify_chunk;
+				if (found_chunk_number != chunk_number) {
+					if (!try_get_chunk(found_chunk_number, check_chunk))
+						continue;
+				}
+				
 				auto find_point_number = GetPointNumberFromPosition(current_checking);
-				YarnVoxelData::YVPointValue find_value = modify_chunk->points[find_point_number.x][find_point_number.y][find_point_number.z];
-				if (find_value.byteValue == 0 || find_value.floatValue > YARNVOXEL_TERRAIN_SURFACE)
+				if (!YarnVoxel::IsPositionValid(find_point_number)) continue;
+				
+				YarnVoxelData::YVPointValue find_value = check_chunk->points[find_point_number.x][find_point_number.y][find_point_number.z];
+				float float_value = int16ToFloat(find_value.floatValue);
+				if (find_value.byteValue == 0 || float_value > 0.0f)
 					continue;
+				
 				// Calculate the distance from the current voxel to the center point
 				float distance = pos.distance_squared_to(Vector3(static_cast<float>(x),static_cast<float>(y),static_cast<float>(z)));
 				if (distance < best_distance) {
-					best_distance=distance;
+					best_distance = distance;
 					best_solid_pos = Vector3i(x,y,z);
-					found_any=true;
+					found_any = true;
 				}
 			}
 		}
 	}
+	
 	if (found_any)
 		return_array.append(best_solid_pos);
 	return return_array;
@@ -754,7 +833,7 @@ void YarnVoxel::smooth_voxel_area(Vector3i pos, float amount, int brushSize) {
 }
 
 bool YarnVoxel::IsPointNumberInBoundary(Vector3i bnumber) {
-	return bnumber.x == 0 || bnumber.x >= YARNVOXEL_CHUNK_WIDTH-1 ||bnumber.y == 0 || bnumber.y >= YARNVOXEL_CHUNK_HEIGHT-1 ||bnumber.z == 0 || bnumber.z >= YARNVOXEL_CHUNK_WIDTH-1;
+	return bnumber.x == 0 || bnumber.x >= YARNVOXEL_CHUNK_WIDTH - 1 ||bnumber.y == 0 || bnumber.y >= YARNVOXEL_CHUNK_HEIGHT - 1 ||bnumber.z == 0 || bnumber.z >= YARNVOXEL_CHUNK_WIDTH - 1;
 }
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
@@ -779,12 +858,33 @@ void YarnVoxel::changeFloat(float newFloat, uint8_t newBlockType, uint8_t health
 
 void YarnVoxel::chunk_generated (Vector3i chunk_completed) {
 	//print_line("YarnVoxel received callback chunk generated from chunk number ",chunk_completed);
+	ticks_last_completed = OS::get_singleton()->get_ticks_usec() / 1000;
+	last_chunk_completed = chunk_completed;
 	if (is_generating) {
 		is_generating=false;
 		if (DirtyChunksQueue.size() <= 0) {
 			emit_signal(SNAME("finished"));
 		}
 	}
+}
+
+TypedArray<Vector3i> YarnVoxel::get_dirty_chunks_queued() const {
+	TypedArray<Vector3i> dirty_chunks;
+	for (const Vector3i &chunk : DirtyChunksQueue) {	
+		dirty_chunks.push_back(chunk);
+	}
+	return dirty_chunks;
+}
+
+String YarnVoxel::dirty_chunk_queue_info() {
+	String info = "";
+	info += vformat("Dirty chunks queue size: %d is generating? %s",DirtyChunksQueue.size(), is_generating);
+	info += vformat("Last Started: %s %s\n",ticks_last_started_generating, last_chunk_started_generating);
+	info += vformat("Last Completed: %s %s\n",ticks_last_completed, last_chunk_completed);
+	for (const Vector3i &chunk : DirtyChunksQueue) {
+		info+= vformat("- Dirty chunk: %s\n",chunk);
+	}
+	return info;
 }
 
 bool YarnVoxel::handle_dirty_chunks() {
@@ -796,8 +896,9 @@ bool YarnVoxel::handle_dirty_chunks() {
 		return true;
 	}
 	is_generating = true;
-	ticks_late_generated = OS::get_singleton()->get_ticks_usec() / 1000;
+	ticks_last_started_generating = OS::get_singleton()->get_ticks_usec() / 1000;
 	const auto current_chunk = DirtyChunksQueue[0];
+	last_chunk_started_generating = current_chunk;
 	DirtyChunksQueue.remove_at(0);
 	YVoxelChunk* found_chunk = nullptr;
 	if(try_get_chunk(current_chunk, found_chunk)) {
@@ -940,6 +1041,10 @@ YarnVoxel::YarnVoxel() {
 	is_generating=false;
     chunk_completed_callback = StaticCString::create("chunk_generated");
 	callable_chunk_completed_callback = callable_mp(this,&YarnVoxel::chunk_generated);
+	ticks_last_started_generating = 0;
+	ticks_last_completed = 0;
+	last_chunk_started_generating = Vector3i(0,0,0);
+	last_chunk_completed = Vector3i(0,0,0);	
 	count = 0;
 	debugging_config = 0;
 	is_debugging_chunk = false;

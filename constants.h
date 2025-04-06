@@ -24,9 +24,8 @@ static constexpr const int16_t ALMOST_FULL_SHORT = 13106;
 static constexpr const int16_t ALMOST_EMPTY_SHORT = -13106;
 
 inline int16_t floatToInt16(float value) {
-	if (value < -0.9999f) return INT16_MIN;
-	if (value > 0.9999f) return INT16_MAX;
-	return static_cast<int16_t>(value * INT16_MAX);
+    if (value <= -0.9999f) return INT16_MIN;
+    return static_cast<int16_t>(value * INT16_MAX);
 }
 
 // Int16 to Float

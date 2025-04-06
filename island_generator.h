@@ -22,9 +22,12 @@ class IslandGenerator : public Resource {
     GDCLASS(IslandGenerator, Resource);
 
 protected:
-
     static void _bind_methods();
-    //private:
+
+private:
+    // Room generation helper methods
+    Vector2 GetRoomNoise(float x, float z) const;
+    float GetRoomDensityModifier(const Vector3& world_pos, float base_density) const;
 
 public:
     Array gen_effects;
@@ -101,12 +104,29 @@ public:
 
     Vector2 GetDensity3D(float x, float y, float z, float initialDensity, float desiredHeight) const;
 
-    void generate_chunk(Vector3i chunk_number);
+    void generate_chunk(Vector3i chunk_number, bool force_cave = false, bool smooth_points = false);
 
     IslandGenerator();
     ~IslandGenerator();
+
+    // Room generation properties
+    Ref<FastNoiseLite> room_noise;
+    float room_noise_scale = 0.005f;
+    float room_threshold = 0.6f;
+    float floor_smoothness = 0.3f;
+    int room_height = 8;
+
+    float get_room_noise_scale() const { return room_noise_scale; }
+    void set_room_noise_scale(float value) { room_noise_scale = value; emit_changed(); }
+    
+    float get_room_threshold() const { return room_threshold; }
+    void set_room_threshold(float value) { room_threshold = value; emit_changed(); }
+    
+    float get_floor_smoothness() const { return floor_smoothness; }
+    void set_floor_smoothness(float value) { floor_smoothness = value; emit_changed(); }
+    
+    int get_room_height() const { return room_height; }
+    void set_room_height(int value) { room_height = value; emit_changed(); }
 };
-
-
 
 #endif //ISLAND_GENERATOR_H

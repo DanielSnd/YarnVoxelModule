@@ -40,7 +40,10 @@ protected:
         void _notification(int p_what);
 
 public:
-	uint64_t ticks_late_generated;
+	uint64_t ticks_last_started_generating;
+	uint64_t ticks_last_completed;
+	Vector3i last_chunk_started_generating;
+	Vector3i last_chunk_completed;
 	static HashMap<Vector3i,YVoxelChunk *> yvchunks;
 	bool is_generating;
 	bool using_default_shader = false;
@@ -87,6 +90,10 @@ public:
 	static int FastFloor(float f);
 	Vector<Vector3i> DirtyChunksQueue;
 
+	TypedArray<Vector3i> get_dirty_chunks_queued() const;
+
+    	String dirty_chunk_queue_info();
+
 	bool get_is_debugging_chunk() {return is_debugging_chunk;}
 	void set_is_debugging_chunk(bool val) {is_debugging_chunk = val;}
 
@@ -124,7 +131,7 @@ public:
 
 	void modify_voxel_area(Vector3i pos, float amount, int brushSize, int block_type = -1);
 
-	Array find_closest_solid_point_to(Vector3 pos);
+	Array find_closest_solid_point_to(Vector3 pos, int search_radius = 2);
 
 	bool damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize);
 
@@ -162,6 +169,8 @@ public:
 	static Vector3i GetPointNumberFromPosition(Vector3 pos);
 	Vector3i FindPointNumberFromPosition(Vector3 pos);
 
+	uint8_t FindHealthValueForPos(Vector3 pos);
+	float FindFloatValueForPosFloat(Vector3 pos);
 	int16_t FindFloatValueForPos(Vector3 pos);
 
 	int FindBlockTypeForPos(Vector3 pos);
