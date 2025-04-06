@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="YarnVoxel" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+<class name="YarnVoxel" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 		A voxel engine system that allows for procedural terrain generation and manipulation using marching cubes.
 	</brief_description>
 	<description>
 		YarnVoxel is a voxel engine implementation that provides a complete system for generating, managing, and manipulating voxel-based terrain. It uses a chunk-based system to efficiently handle large terrains.
-		
+
 		The terrain is divided into chunks (YVoxelChunk objects) which are generated and rendered independently. Each chunk contains a 3D grid of points that define the terrain's density values.
-		
+
 		Key features include:
 		- Procedural terrain generation using Perlin noise
 		- Chunk-based terrain management for efficient memory usage and rendering
@@ -15,15 +15,15 @@
 		- Ability to modify terrain in real-time (digging, building, etc.)
 		- Material system for terrain appearance
 		- Optional grass generation
-		
+
 		The voxel data is structured with float values representing density (negative values are inside the terrain, positive values are outside) and byte values representing different block types (grass, dirt, stone, etc.).
-		
+
 		To use YarnVoxel:
 		1. Set up a parent Node3D as the main_node where chunks will be spawned
 		2. Configure terrain parameters like cell_size
 		3. Set a material for rendering the terrain
 		4. Manipulate terrain using methods like set_value_at() and damage_voxel_area()
-		
+
 		YarnVoxel automatically handles chunk creation, updating, and rendering. When modifications are made to the terrain, only affected chunks are regenerated.
 	</description>
 	<tutorials>
@@ -42,18 +42,32 @@
 			<param index="2" name="size" type="int" default="1" />
 			<description>
 				Damages voxels around the specified world position. Returns true if any voxels were damaged.
-				
+
 				Parameters:
 				- world_pos: The center position of the area to damage
 				- amount: Amount of damage to apply (reduces voxel health)
 				- size: Radius of the spherical area to affect
-				
+
 				When a voxel's health reaches zero, it is destroyed and the "destroyed_voxels" signal is emitted.
+			</description>
+		</method>
+		<method name="dirty_chunk_queue_info">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="find_air_position_with_clearance">
+			<return type="Vector3" />
+			<param index="0" name="center_pos" type="Vector3" />
+			<param index="1" name="radius" type="int" />
+			<param index="2" name="required_clearance" type="float" />
+			<description>
 			</description>
 		</method>
 		<method name="find_closest_solid_point_to">
 			<return type="Array" />
 			<param index="0" name="world_position" type="Vector3" />
+			<param index="1" name="search_radius" type="int" default="2" />
 			<description>
 				Finds the closest solid voxel point to the given world position. Returns an Array containing the position of the closest solid point, or an empty Array if no solid point is found within the search radius.
 			</description>
@@ -106,8 +120,13 @@
 				Returns an array of all currently active YVoxelChunk objects.
 			</description>
 		</method>
+		<method name="get_dirty_chunks_queued" qualifiers="const">
+			<return type="Vector3i[]" />
+			<description>
+			</description>
+		</method>
 		<method name="get_float_value">
-			<return type="int" />
+			<return type="float" />
 			<param index="0" name="worldPostion" type="Vector3" />
 			<description>
 				Returns the density float value at the specified world position. Negative values are inside the terrain, positive values are outside.
@@ -125,6 +144,12 @@
 			<param index="0" name="worldPostion" type="Vector3" />
 			<description>
 				Returns a unique hash key for the specified world position, used for internal lookups.
+			</description>
+		</method>
+		<method name="get_health_value">
+			<return type="int" />
+			<param index="0" name="worldPostion" type="Vector3" />
+			<description>
 			</description>
 		</method>
 		<method name="get_is_generating" qualifiers="const">
@@ -183,7 +208,7 @@
 			<param index="2" name="health" type="int" default="255" />
 			<description>
 				Sets the voxel value at the position specified by debug_pos. This is primarily for testing purposes.
-				
+
 				Parameters:
 				- value: The density value to set (negative values are inside terrain, positive are outside)
 				- block_type: The type of block to set (from BlockType enum)
@@ -198,12 +223,20 @@
 			<param index="3" name="health" type="int" default="255" />
 			<description>
 				Sets the voxel value at the specified world position.
-				
+
 				Parameters:
 				- position: World position to modify
 				- value: The density value to set (negative values are inside terrain, positive are outside)
 				- block_type: The type of block to set (from BlockType enum)
 				- health: The health value of the block (affects resistance to damage)
+			</description>
+		</method>
+		<method name="smooth_voxel_area">
+			<return type="void" />
+			<param index="0" name="world_pos" type="Vector3i" />
+			<param index="1" name="amount" type="float" default="1" />
+			<param index="2" name="size" type="int" default="1" />
+			<description>
 			</description>
 		</method>
 		<method name="try_get_chunk">
@@ -215,6 +248,8 @@
 		</method>
 	</methods>
 	<members>
+		<member name="calculate_custom_normals" type="bool" setter="set_calculate_custom_normals" getter="get_calculate_custom_normals" default="false">
+		</member>
 		<member name="cell_size" type="int" setter="set_cell_size" getter="get_cell_size" default="256">
 			The size of grid cells used for terrain calculations. Larger values make terrain more spread out.
 		</member>
@@ -239,11 +274,10 @@
 		<member name="is_debugging_chunk" type="bool" setter="set_is_debugging_chunk" getter="get_is_debugging_chunk" default="false">
 			Whether to enable debugging for the chunk specified by debugging_chunk.
 		</member>
-		<member name="is_inverted_marching_cubes" type="bool" setter="set_is_inverted_marching_cubes" getter="get_is_inverted_marching_cubes" default="false">
-			When true, inverts the marching cubes algorithm. This can be useful for creating cave-like interior spaces.
-		</member>
 		<member name="main_node" type="Node3D" setter="set_main_node" getter="get_main_node">
 			The parent Node3D where all voxel chunks will be spawned as children. If not set, the system will attempt to use the current scene root.
+		</member>
+		<member name="serialize_when_generating" type="bool" setter="set_serialize_when_generating" getter="get_serialize_when_generating" default="true">
 		</member>
 	</members>
 	<signals>

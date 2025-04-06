@@ -24,6 +24,12 @@
 #include "core/variant/variant_utility.h"
 #include "scene/3d/multimesh_instance_3d.h"
 #include "scene/resources/3d/concave_polygon_shape_3d.h"
+#include "thirdparty/meshoptimizer/meshoptimizer.h"
+#include "core/io/marshalls.h"
+#include "core/math/geometry_2d.h"
+#include "core/math/triangulate.h"
+#include "scene/3d/importer_mesh_instance_3d.h"
+#include "scene/resources/3d/importer_mesh.h"
 // #include "scene/3d/physics_body_3d.h"
 // #include "scene/main/node.h"
 
@@ -49,6 +55,7 @@ protected:
 public:
     bool has_done_ready = false;
     bool has_registered_chunk_number = false;
+    float simplification_distance = 0.1f;
 	StringName completed_generation;
     Vector<YarnVoxelData::YVTriangleData> mesh_triangles = {};
     Vector<YarnVoxelData::YVPropTriangleData> possible_prop_places = {};
@@ -180,7 +187,12 @@ public:
 
     real_t get_collision_priority() const;
 
+    void set_simplification_distance(float p_distance) {simplification_distance = p_distance;}
+    float get_simplification_distance() const {return simplification_distance;}
+
     bool is_point_position_in_range_without_neighbours(int x, int y, int z);
+
+    void optimize_faces(float p_simplification_dist = 0.1f);
 
     void MarchCube(Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health,uint8_t debugging_config);
 

@@ -366,15 +366,6 @@ void YVoxelChunk::generate() {
 
     
 
-    Ref<Material> use_material = YarnVoxel::get_singleton()->get_material();
-    if (use_material.is_valid()) {
-        if (get_surface_override_material_count() == 0) {
-            surface_override_materials.append(use_material);
-        } else {
-            set_surface_override_material(0,use_material);
-        }
-    }
-    
     // Check if we should use custom normal calculation
     bool use_custom_calculation = YarnVoxel::get_singleton()->get_calculate_custom_normals();
     
@@ -404,8 +395,6 @@ void YVoxelChunk::generate() {
         auto* index1_pointer = output_pos_to_index.getptr(triangle.v1);
         int index1;
         
-        faces.push_back(triangle.v3);
-
         if (index1_pointer == nullptr) {
             index1 = vertices.size();
             vertices.push_back(triangle.v1);
@@ -439,7 +428,6 @@ void YVoxelChunk::generate() {
                 colors.write[index2] = desiredColor;
             }
         }
-        faces.push_back(triangle.v2);
         
         // Process vertex 3
         auto* index3_pointer = output_pos_to_index.getptr(triangle.v3);
@@ -460,7 +448,6 @@ void YVoxelChunk::generate() {
                 colors.write[index3] = desiredColor;
             }
         }
-        faces.push_back(triangle.v1);
 
         // Add indices for this triangle
         indices.push_back(index1);
@@ -527,10 +514,19 @@ void YVoxelChunk::generate() {
             print_line(get_name()," Finished creating mesh: ", duration.count(),"us");
         }
 
-        if (faces.size() > 0) {
+        if (indices.size() > 0) {
             set_physics_process(true);
         }
 
+        Ref<Material> use_material = YarnVoxel::get_singleton()->get_material();
+        if (use_material.is_valid()) {
+            if (get_surface_override_material_count() == 0) {
+                surface_override_materials.append(use_material);
+            } else {
+                set_surface_override_material(0,use_material);
+            }
+        }
+        
         set_name(vformat("Chunk: %s tris: %s", chunk_number, indices.size() / 3));
     } else {
         //print_line("Chunk number ", chunk_number, " didn't have any triangles to generate ", get_instance_id());
@@ -563,6 +559,116 @@ void YVoxelChunk::generate() {
         notify_property_list_changed();
     }
 #endif
+
+}
+
+void YVoxelChunk::optimize_faces(float p_simplification_dist) {
+
+    auto start_optimize_faces = std::chrono::high_resolution_clock::now();
+    // Get the vertex positions and index arrays from the surface data
+    PackedVector3Array verts;  // Extract vertex positions
+    PackedInt32Array inds;      // Extract triangle inds
+    PackedVector3Array r_verts;  // Extract vertex positions
+    PackedInt32Array r_inds;      // Extract triangle inds
+    
+    // Skip processing if the mesh has no geometry
+    if (vertices.size() == 0 || indices.size() == 0) {
+        return;
+    }
+    for (int i = 0; i < vertices.size(); i++) {
+        verts.append(vertices[i]);
+    }
+    for (int i = 0; i < indices.size(); i++) {
+        inds.append(indices[i]);
+    }
+    // Mesh simplification section - only runs if simplification distance is non-zero and the simplify function exists
+    if (!Math::is_zero_approx(p_simplification_dist) && SurfaceTool::simplify_func) {
+        // Convert the Vector3 array to a flat float array (required by meshoptimizer)
+        // Format: [x1,y1,z1,x2,y2,z2,...]
+        Vector<float> verts_f32 = vector3_to_float32_array(verts.ptr(), verts.size());
+        // Calculate error scale based on the mesh size
+        // This helps adjust the simplification threshold based on the overall scale of the mesh
+        float error_scale = SurfaceTool::simplify_scale_func(
+            verts_f32.ptr(),     // Pointer to the vertex data
+            verts.size(),        // Number of verts
+            sizeof(float) * 3       // Stride between verts (3 floats per vertex)
+        );
+        
+        // Convert the user-specified simplification distance to a normalized error value
+        float target_error = p_simplification_dist / error_scale;
+        
+        float error = -1.0f;  // Will store the actual simplification error after processing
+        
+        // Set a target index count (minimum number of inds to preserve)
+        // Use either all inds or at most 36 (12 triangles)
+        int target_index_count = MIN(inds.size(), 36);
+        // Set simplification options - SIMPLIFY_LOCK_BORDER ensures border edges are preserved
+        const int simplify_options = SurfaceTool::SIMPLIFY_LOCK_BORDER;
+        // Call the meshoptimizer simplify function to reduce the mesh complexity
+        uint32_t index_count = SurfaceTool::simplify_func(
+                (unsigned int *)inds.ptrw(),    // Output buffer (overwriting original inds)
+                (unsigned int *)inds.ptr(),     // Input inds
+                inds.size(),                    // Number of input inds
+                verts_f32.ptr(),                // Vertex positions
+                verts.size(),                   // Number of verts
+                sizeof(float) * 3,                 // Stride between verts
+                target_index_count,                // Target number of inds
+                target_error,                      // Maximum allowed error
+                simplify_options,                  // Simplification options
+                &error                             // Output parameter for resulting error
+        );
+        
+        // Resize the index array to the new count returned by the simplification function
+        inds.resize(index_count);
+    }
+
+    // Remove unused verts (those not referenced by any triangle after simplification)
+    SurfaceTool::strip_mesh_arrays(verts, inds);
+    // Append verts to the output vertex array
+    int vertex_offset = r_verts.size();                       // Get current size as offset
+    r_verts.resize(vertex_offset + verts.size());          // Resize array to fit new verts
+    memcpy(r_verts.ptrw() + vertex_offset, verts.ptr(),    // Copy verts to the resized array
+        verts.size() * sizeof(Vector3));
+    // Append inds to the output index array, adjusting them by the vertex offset
+    int index_offset = r_inds.size();                         // Get current size as offset
+    r_inds.resize(index_offset + inds.size());             // Resize array to fit new inds
+    int *idx_ptr = r_inds.ptrw();                             // Get write access to index array
+    for (int j = 0; j < inds.size(); j++) {
+        // Adjust each index by adding the vertex offset to maintain correct references
+        idx_ptr[index_offset + j] = vertex_offset + inds[j];
+    }
+
+
+    // Stop the clock
+    if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+        auto stop = std::chrono::high_resolution_clock::now();
+        // Calculate the duration in microseconds
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_optimize_faces);
+        // Print the duration
+        print_line(get_name()," Finished Optimizing Faces for collision: ", duration.count(),"us");
+    }
+
+    faces.clear();
+    for (int i = 0; i < r_inds.size(); i += 3) {
+        faces.push_back(r_verts[r_inds[i]]);
+        faces.push_back(r_verts[r_inds[i + 1]]); 
+        faces.push_back(r_verts[r_inds[i + 2]]);
+    }
+    // Set collision data
+    Dictionary d;
+    d["faces"] = faces;
+    d["backface_collision"] = false;
+
+    auto start_set_collision_data = std::chrono::high_resolution_clock::now();
+    PhysicsServer3D::get_singleton()->shape_set_data(root_collision_shape, d);
+    // Stop the clock
+    if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+        auto stop = std::chrono::high_resolution_clock::now();
+        // Calculate the duration in microseconds
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_set_collision_data);
+        // Print the duration
+        print_line(get_name()," Finished Setting Mesh Collision: ", duration.count(),"us");
+    }
 
 }
 
@@ -922,23 +1028,9 @@ void YVoxelChunk::do_ready() {
 }
 
 void YVoxelChunk::do_physics_process() {
-    if (root_collision_instance.is_valid() && faces.size() > 0) {
-        // Set collision data
-        Dictionary d;
-        d["faces"] = faces;
-        d["backface_collision"] = false;
+    if (root_collision_instance.is_valid() && indices.size() > 0) {
+        optimize_faces(get_simplification_distance());
 
-        auto start_set_collision_data = std::chrono::high_resolution_clock::now();
-        PhysicsServer3D::get_singleton()->shape_set_data(root_collision_shape, d);
-        
-        // Stop the clock
-        if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
-            auto stop = std::chrono::high_resolution_clock::now();
-            // Calculate the duration in microseconds
-            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_set_collision_data);
-            // Print the duration
-            print_line(get_name()," Finished Setting Mesh Collision: ", duration.count(),"us");
-        }
         // PhysicsServer3D::get_singleton()->body_set_state(root_collision_instance, PhysicsServer3D::BODY_STATE_TRANSFORM, get_global_transform());
     }
     set_physics_process(false);
@@ -1077,6 +1169,8 @@ void YVoxelChunk::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_data","data"), &YVoxelChunk::set_data);
 
 
+    ClassDB::bind_method(D_METHOD("set_simplification_distance", "distance"), &YVoxelChunk::set_simplification_distance);
+    ClassDB::bind_method(D_METHOD("get_simplification_distance"), &YVoxelChunk::get_simplification_distance);
     //
     // ClassDB::bind_method(D_METHOD("set_use_collision", "operation"), &YVoxelChunk::set_use_collision);
     // ClassDB::bind_method(D_METHOD("is_using_collision"), &YVoxelChunk::is_using_collision);
@@ -1106,6 +1200,7 @@ void YVoxelChunk::_bind_methods() {
     ADD_PROPERTY(PropertyInfo(Variant::INT, "collision_mask", PROPERTY_HINT_LAYERS_3D_PHYSICS), "set_collision_mask", "get_collision_mask");
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "collision_priority"), "set_collision_priority", "get_collision_priority");
 
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "simplification_distance"), "set_simplification_distance", "get_simplification_distance");
 }
 
 void YVoxelChunk::set_chunk_number(Vector3i v) {

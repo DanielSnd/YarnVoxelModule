@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="IslandGenerator" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+<class name="IslandGenerator" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 	</brief_description>
 	<description>
@@ -7,6 +7,14 @@
 	<tutorials>
 	</tutorials>
 	<methods>
+		<method name="generate_chunk">
+			<return type="void" />
+			<param index="0" name="chunk_number" type="Vector3i" />
+			<param index="1" name="force_cave" type="bool" default="false" />
+			<param index="2" name="smooth_points" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
 		<method name="generate_island">
 			<return type="void" />
 			<param index="0" name="world_pos" type="Vector3" default="Vector3(0, 0, 0)" />
@@ -49,6 +57,14 @@
 		<member name="el_terrain_min" type="float" setter="set_terrain_min" getter="get_terrain_min" default="1.2">
 		</member>
 		<member name="el_water_level" type="float" setter="set_water_level" getter="get_water_level" default="-1.15">
+		</member>
+		<member name="room_floor_smoothness" type="float" setter="set_floor_smoothness" getter="get_floor_smoothness" default="0.3">
+		</member>
+		<member name="room_height" type="int" setter="set_room_height" getter="get_room_height" default="8">
+		</member>
+		<member name="room_noise_scale" type="float" setter="set_room_noise_scale" getter="get_room_noise_scale" default="0.005">
+		</member>
+		<member name="room_threshold" type="float" setter="set_room_threshold" getter="get_room_threshold" default="0.6">
 		</member>
 		<member name="seed" type="int" setter="set_seed" getter="get_seed" default="-1">
 		</member>

@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="YVoxelChunk" inherits="MeshInstance3D" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+<class name="YVoxelChunk" inherits="MeshInstance3D" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 		A chunk-based component of the YarnVoxel system that represents and renders a portion of voxel terrain.
 	</brief_description>
 	<description>
 		YVoxelChunk is a specialized MeshInstance3D that handles a discrete portion of terrain in the YarnVoxel system. Each chunk manages a 3D grid of voxel data and generates a mesh representation using the marching cubes algorithm.
-		
+
 		Chunks are automatically created and managed by the YarnVoxel system when needed, typically as the player moves through the world. Each chunk stores its data in a compact format that includes:
 		- Density values for terrain shape (stored as float values)
 		- Block type information (grass, dirt, stone, etc.)
 		- Block health values for damage systems
-		
+
 		The YVoxelChunk handles:
 		- Mesh generation from voxel data
 		- Physics collision through an automatically created collision shape
 		- Serialization/deserialization of chunk data for efficient storage
 		- Terrain modification and queries
 		- Seamless connection with neighboring chunks
-		
+
 		To optimize performance, chunks only regenerate their meshes when their data is modified, and boundary conditions are properly managed to ensure seamless terrain between chunks.
 	</description>
 	<tutorials>
@@ -33,14 +33,14 @@
 			<return type="void" />
 			<description>
 				Generates the mesh for this chunk based on its current voxel data. This process uses the marching cubes algorithm to create a smooth surface representation of the terrain.
-				
+
 				During generation, the method will:
 				1. Cache neighbor data for proper edge handling
 				2. Compute the surface mesh based on voxel density values
 				3. Create collision shapes for physics interactions
 				4. Generate UVs, normals, and colors based on block types
 				5. Emit the "completed_generation" signal when finished
-				
+
 				This is a computationally intensive operation that should not be called frequently.
 			</description>
 		</method>
@@ -74,7 +74,7 @@
 			<return type="void" />
 			<description>
 				Populates this chunk with procedurally generated 3D terrain using Perlin noise. This creates a more complex terrain with features like caves and overhangs, unlike the 2D heightmap approach of populate_terrain().
-				
+
 				After populating the voxel data, the method automatically marks the chunk as dirty to trigger mesh regeneration.
 			</description>
 		</method>
@@ -83,12 +83,12 @@
 			<param index="0" name="height" type="float" default="8" />
 			<description>
 				Populates this chunk with procedurally generated terrain using 2D Perlin noise as a height map. The height parameter affects the base terrain height.
-				
+
 				This method:
 				1. Generates a height value for each x,z coordinate using Perlin noise
 				2. Fills the chunk with appropriate voxel values based on the height map
 				3. Marks the chunk as dirty to trigger mesh regeneration
-				
+
 				The terrain generated is similar to traditional heightmap-based terrain, without caves or overhangs.
 			</description>
 		</method>
@@ -113,7 +113,7 @@
 			<param index="0" name="data" type="PackedByteArray" />
 			<description>
 				Sets the chunk's voxel data from a serialized byte array and triggers deserialization. This is used for loading chunks from storage or network transmission.
-				
+
 				The data should be in the format produced by get_data(), using a run-length encoding scheme for efficient storage.
 			</description>
 		</method>
@@ -143,7 +143,7 @@
 			<param index="0" name="chunk_number" type="Vector3i" />
 			<description>
 				Emitted when the chunk finishes generating its mesh. The chunk_number parameter contains the 3D grid coordinates of the chunk that completed generation.
-				
+
 				This signal is used by the YarnVoxel system to manage chunk generation queues and notify when terrain modification operations are complete.
 			</description>
 		</signal>
