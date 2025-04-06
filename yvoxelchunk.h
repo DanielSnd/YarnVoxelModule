@@ -77,6 +77,40 @@ public:
     void do_process();
     void do_physics_process();
 
+    int get_prop_places_count() { return possible_prop_places.size(); }
+    int get_prop_place_byte(int index) {
+        if (index < 0 || index >= possible_prop_places.size()) {    
+            return 0;
+        }
+        return possible_prop_places[index].desiredByte;
+    }
+    Vector3 get_prop_place_position(int index) {   
+        if (index < 0 || index >= possible_prop_places.size()) {
+            return Vector3();
+        }
+        return possible_prop_places[index].world_center_pos();
+    }
+    Vector3 get_prop_place_normal(int index) {   
+        if (index < 0 || index >= possible_prop_places.size()) {
+            return Vector3();
+        }
+        return possible_prop_places[index].normal();
+    }
+    float get_prop_place_slope(int index) {   
+        if (index < 0 || index >= possible_prop_places.size()) {
+            return 0.0f;
+        }
+        return possible_prop_places[index].average_slope();
+    }
+    float get_prop_place_dot_product(int index) {   
+        if (index < 0 || index >= possible_prop_places.size()) {
+            return 0.0f;
+        }
+        return possible_prop_places[index].dot_product();
+    }
+    
+
+
     void set_collision_layer(uint32_t p_layer);
 
     uint32_t get_collision_layer() const;

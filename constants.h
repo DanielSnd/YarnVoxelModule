@@ -44,6 +44,10 @@ namespace YarnVoxelData {
 		YVTriangleData() : v1(YARNVOXEL_VECTOR3I_ZERO),v2 (YARNVOXEL_VECTOR3I_ZERO), v3(YARNVOXEL_VECTOR3I_ZERO), desiredByte(1),health(1) {}
 		YVTriangleData(Vector3 item1, Vector3 item2, Vector3 item3, uint8_t dbyte = 1, uint8_t health = 255)
 			: v1(item1), v2(item2), v3(item3), desiredByte(dbyte), health(health) {}
+			
+		[[nodiscard]] Vector3 normal() const {
+			return normalize(cross(v2 - v1, v3 - v1));
+		}
 	};
 
 	struct YVPointValue {

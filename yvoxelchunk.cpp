@@ -371,20 +371,6 @@ void YVoxelChunk::generate() {
     
     auto start_normal_calculation = std::chrono::high_resolution_clock::now();
     
-    // Lambda for calculating normals from density field gradient
-    auto calc_normal = [this](const Vector3& vertex_pos) -> Vector3 {
-        Vector3i point_pos = YarnVoxel::GetPointNumberFromPosition(vertex_pos + bottom_corner_world_pos);
-        
-        // Sample densities in 6 directions using cached points data
-        float dx = int16ToFloat(points[point_pos.x + 1][point_pos.y][point_pos.z].floatValue) - 
-                int16ToFloat(points[point_pos.x - 1][point_pos.y][point_pos.z].floatValue);
-        float dy = int16ToFloat(points[point_pos.x][point_pos.y + 1][point_pos.z].floatValue) - 
-                int16ToFloat(points[point_pos.x][point_pos.y - 1][point_pos.z].floatValue);
-        float dz = int16ToFloat(points[point_pos.x][point_pos.y][point_pos.z + 1].floatValue) - 
-                int16ToFloat(points[point_pos.x][point_pos.y][point_pos.z - 1].floatValue);
-        
-        return Vector3(-dx, -dy, -dz).normalized();
-    };
 
     // Optimized approach with index reuse
     for (auto& triangle : mesh_triangles) {
@@ -399,7 +385,7 @@ void YVoxelChunk::generate() {
             index1 = vertices.size();
             vertices.push_back(triangle.v1);
             if (!use_custom_calculation)
-                normals.push_back(calc_normal(triangle.v1));
+                normals.push_back((triangle.normal()));
             uvs.push_back(Vector2(0, 0));
             colors.push_back(desiredColor);
             output_pos_to_index[triangle.v1] = index1;
@@ -418,7 +404,7 @@ void YVoxelChunk::generate() {
             index2 = vertices.size();
             vertices.push_back(triangle.v2);
             if (!use_custom_calculation)
-                normals.push_back(calc_normal(triangle.v2));
+                normals.push_back(triangle.normal());
             uvs.push_back(Vector2(0, 0));
             colors.push_back(desiredColor);
             output_pos_to_index[triangle.v2] = index2;
@@ -438,7 +424,7 @@ void YVoxelChunk::generate() {
             vertices.push_back(triangle.v3);
             
             if (!use_custom_calculation)
-                normals.push_back(calc_normal(triangle.v3));
+                normals.push_back(triangle.normal());
             uvs.push_back(Vector2(0, 0));
             colors.push_back(desiredColor);
             output_pos_to_index[triangle.v3] = index3;
@@ -1164,6 +1150,14 @@ void YVoxelChunk::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_bottom_corner_world_pos","bottom_corner"), &YVoxelChunk::set_bottom_corner_world_pos);
     ClassDB::bind_method(D_METHOD("populate_terrain","height"), &YVoxelChunk::populate_terrain,DEFVAL(8));
     ClassDB::bind_method(D_METHOD("populate_chunk_3d"), &YVoxelChunk::populate_chunk_3d);
+
+    ClassDB::bind_method(D_METHOD("get_prop_places_count"), &YVoxelChunk::get_prop_places_count);
+    ClassDB::bind_method(D_METHOD("get_prop_place_byte","index"), &YVoxelChunk::get_prop_place_byte);
+    ClassDB::bind_method(D_METHOD("get_prop_place_position","index"), &YVoxelChunk::get_prop_place_position);
+    ClassDB::bind_method(D_METHOD("get_prop_place_normal","index"), &YVoxelChunk::get_prop_place_normal);
+    ClassDB::bind_method(D_METHOD("get_prop_place_slope","index"), &YVoxelChunk::get_prop_place_slope);
+    ClassDB::bind_method(D_METHOD("get_prop_place_dot_product","index"), &YVoxelChunk::get_prop_place_dot_product);
+
 
     ClassDB::bind_method(D_METHOD("get_data"), &YVoxelChunk::get_data);
     ClassDB::bind_method(D_METHOD("set_data","data"), &YVoxelChunk::set_data);
