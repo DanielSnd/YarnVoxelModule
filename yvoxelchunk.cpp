@@ -1158,6 +1158,8 @@ void YVoxelChunk::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_prop_place_slope","index"), &YVoxelChunk::get_prop_place_slope);
     ClassDB::bind_method(D_METHOD("get_prop_place_dot_product","index"), &YVoxelChunk::get_prop_place_dot_product);
 
+    ClassDB::bind_method(D_METHOD("clear_all_points"), &YVoxelChunk::clear_all_points);
+
 
     ClassDB::bind_method(D_METHOD("get_data"), &YVoxelChunk::get_data);
     ClassDB::bind_method(D_METHOD("set_data","data"), &YVoxelChunk::set_data);
