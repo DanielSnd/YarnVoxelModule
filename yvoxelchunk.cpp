@@ -380,12 +380,12 @@ void YVoxelChunk::generate() {
         // Process vertex 1
         auto* index1_pointer = output_pos_to_index.getptr(triangle.v1);
         int index1;
-        
+        Vector3 _normal = triangle.normal();
         if (index1_pointer == nullptr) {
             index1 = vertices.size();
             vertices.push_back(triangle.v1);
             if (!use_custom_calculation)
-                normals.push_back((triangle.normal()));
+                normals.push_back((_normal));
             uvs.push_back(Vector2(0, 0));
             colors.push_back(desiredColor);
             output_pos_to_index[triangle.v1] = index1;
@@ -404,7 +404,7 @@ void YVoxelChunk::generate() {
             index2 = vertices.size();
             vertices.push_back(triangle.v2);
             if (!use_custom_calculation)
-                normals.push_back(triangle.normal());
+                normals.push_back(_normal);
             uvs.push_back(Vector2(0, 0));
             colors.push_back(desiredColor);
             output_pos_to_index[triangle.v2] = index2;
@@ -424,7 +424,7 @@ void YVoxelChunk::generate() {
             vertices.push_back(triangle.v3);
             
             if (!use_custom_calculation)
-                normals.push_back(triangle.normal());
+                normals.push_back(_normal);
             uvs.push_back(Vector2(0, 0));
             colors.push_back(desiredColor);
             output_pos_to_index[triangle.v3] = index3;
