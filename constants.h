@@ -34,6 +34,31 @@ inline float int16ToFloat(int16_t value) {
 }
 
 namespace YarnVoxelData {
+	
+	static _ALWAYS_INLINE_ Vector3 normalize(const Vector3 &n_vector) {
+		const real_t x2 = n_vector.x * n_vector.x;
+		const real_t y2 = n_vector.y * n_vector.y;
+		const real_t z2 = n_vector.z * n_vector.z;
+		const real_t lengthsq = x2 + y2 + z2;
+		auto return_v = Vector3{n_vector.x,n_vector.y,n_vector.z};
+		if (lengthsq == 0) {
+			return_v.x = return_v.y = return_v.z = 0;
+		} else {
+			const real_t length = Math::sqrt(lengthsq);
+			return_v.x /= length;
+			return_v.y /= length;
+			return_v.z /= length;
+		}
+		return return_v;
+	}
+	static _ALWAYS_INLINE_ Vector3 cross(const Vector3 &p_from, const Vector3 &p_with) {
+		Vector3 ret(
+				(p_from.y * p_with.z) - (p_from.z * p_with.y),
+				(p_from.z * p_with.x) - (p_from.x * p_with.z),
+				(p_from.x * p_with.y) - (p_from.y * p_with.x));
+		return ret;
+	}
+
 	struct YVTriangleData {
 		Vector3 v1;
 		Vector3 v2;
@@ -644,30 +669,6 @@ namespace YarnVoxelData {
 		return res;
 	}
 
-	static _ALWAYS_INLINE_ Vector3 cross(const Vector3 &p_from, const Vector3 &p_with) {
-		Vector3 ret(
-				(p_from.y * p_with.z) - (p_from.z * p_with.y),
-				(p_from.z * p_with.x) - (p_from.x * p_with.z),
-				(p_from.x * p_with.y) - (p_from.y * p_with.x));
-		return ret;
-	}
-
-	static _ALWAYS_INLINE_ Vector3 normalize(const Vector3 &n_vector) {
-		const real_t x2 = n_vector.x * n_vector.x;
-		const real_t y2 = n_vector.y * n_vector.y;
-		const real_t z2 = n_vector.z * n_vector.z;
-		const real_t lengthsq = x2 + y2 + z2;
-		auto return_v = Vector3{n_vector.x,n_vector.y,n_vector.z};
-		if (lengthsq == 0) {
-			return_v.x = return_v.y = return_v.z = 0;
-		} else {
-			const real_t length = Math::sqrt(lengthsq);
-			return_v.x /= length;
-			return_v.y /= length;
-			return_v.z /= length;
-		}
-		return return_v;
-	}
 	struct YVPropTriangleData {
 		Vector3i chunk_number;
 		Vector3 v1;
