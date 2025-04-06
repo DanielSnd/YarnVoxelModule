@@ -401,6 +401,14 @@ void YarnVoxel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_grass_mesh"), &YarnVoxel::get_grass_mesh);
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "grass_mesh", PROPERTY_HINT_RESOURCE_TYPE, "Mesh"), "set_grass_mesh", "get_grass_mesh");
 
+	ClassDB::bind_method(D_METHOD("set_calculate_custom_normals", "enabled"), &YarnVoxel::set_calculate_custom_normals, DEFVAL(true));
+	ClassDB::bind_method(D_METHOD("get_calculate_custom_normals"), &YarnVoxel::get_calculate_custom_normals);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "calculate_custom_normals", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT), "set_calculate_custom_normals", "get_calculate_custom_normals");
+
+	ClassDB::bind_method(D_METHOD("set_serialize_when_generating", "enabled"), &YarnVoxel::set_serialize_when_generating);
+	ClassDB::bind_method(D_METHOD("get_serialize_when_generating"), &YarnVoxel::get_serialize_when_generating);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "serialize_when_generating", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT), "set_serialize_when_generating", "get_serialize_when_generating");
+
 	ClassDB::bind_method(D_METHOD("get_cell_size"), &YarnVoxel::get_cell_size);
 	ClassDB::bind_method(D_METHOD("set_cell_size","cell_size"), &YarnVoxel::set_cell_size);
 
@@ -626,11 +634,9 @@ bool YarnVoxel::damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize) {
 					chunkpointvalue.set_float_value_as_float(target_float);
 				}
 
-				bool was_destroyed = false;
 				// If voxel is destroyed, reset it and track for event emission
 				if (chunkpointvalue.health <= 1) {
 					chunkpointvalue.health = 255;
-					was_destroyed = true;
 					emit_destroyed.append(Vector4i(x,y,z,chunkpointvalue.byteValue));
 					chunkpointvalue.byteValue = 0;
 					chunkpointvalue.floatValue = INT16_MAX;
@@ -1064,9 +1070,11 @@ YarnVoxel::YarnVoxel() {
 	// grass_material = nullptr;
 	generate_grass=false;
 	water_level = 2.0;
-	is_enabled = GLOBAL_DEF_RST(PropertyInfo(Variant::BOOL, "YarnVoxel/general/enabled", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED), "");
-	is_triple_polycount = GLOBAL_DEF_RST(PropertyInfo(Variant::BOOL, "YarnVoxel/general/use_triple_polycount", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED), "");
-	default_material_path = GLOBAL_DEF_RST(PropertyInfo(Variant::STRING, "YarnVoxel/general/default_material", PROPERTY_HINT_FILE, "*.tres,*.res", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED), "");
+	GLOBAL_DEF_RST_BASIC("YarnVoxel/general/enabled", false);
+	serialize_when_generating = GLOBAL_DEF_RST_BASIC("YarnVoxel/general/serialize_when_generating", true);
+	is_triple_polycount = GLOBAL_DEF_RST_BASIC("YarnVoxel/general/use_triple_polycount", false);
+	calculate_custom_normals = GLOBAL_DEF_RST_BASIC("YarnVoxel/general/calculate_custom_normals", false);
+	default_material_path = GLOBAL_DEF(PropertyInfo(Variant::STRING, "YarnVoxel/general/default_material", PROPERTY_HINT_FILE, "*.tres,*.res", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED), "");
 	//print_line("default_material_path ",default_material_path);
 	material = Ref<Material>();
 }

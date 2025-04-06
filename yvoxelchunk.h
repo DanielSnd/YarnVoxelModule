@@ -23,6 +23,7 @@
 #include "core/math/vector3i.h"
 #include "core/variant/variant_utility.h"
 #include "scene/3d/multimesh_instance_3d.h"
+#include "scene/resources/3d/concave_polygon_shape_3d.h"
 // #include "scene/3d/physics_body_3d.h"
 // #include "scene/main/node.h"
 
@@ -42,8 +43,8 @@ protected:
     uint32_t collision_layer = 1;
     uint32_t collision_mask = 1;
     real_t collision_priority = 1.0;
-    Ref<ConcavePolygonShape3D> root_collision_shape;
     RID root_collision_instance;
+    RID root_collision_shape;
 
 public:
     bool has_done_ready = false;
@@ -53,6 +54,13 @@ public:
     Vector<YarnVoxelData::YVPropTriangleData> possible_prop_places = {};
     HashMap<Vector3,int> output_pos_to_index = {};
 
+    Vector<Vector3> vertices;
+    Vector<Vector3> normals;
+    Vector<Vector2> uvs;
+    Vector<int> indices;
+    Vector<Color> colors;
+    Vector<Vector3> faces;
+
     Vector3i chunk_number;
     Vector3i get_chunk_number() {return chunk_number;}
     void deferred_set_dirty();
@@ -60,6 +68,7 @@ public:
 
     void do_ready();
     void do_process();
+    void do_physics_process();
 
     void set_collision_layer(uint32_t p_layer);
 
@@ -91,8 +100,8 @@ public:
 
     YarnVoxelData::YVPointValue points[YARNVOXEL_CHUNK_WIDTH + 1][YARNVOXEL_CHUNK_HEIGHT+1][YARNVOXEL_CHUNK_WIDTH+1];
 
-    bool has_neighbour_chunks[2][2][2] = {false};
-    YVoxelChunk* neighbour_chunks[2][2][2] = {nullptr};
+    bool has_neighbour_chunks[2][2][2] = {{{false}}};
+    YVoxelChunk* neighbour_chunks[2][2][2] = {{{nullptr}}};
 
     Vector<uint8_t> data;
     void set_data (const Vector<uint8_t> &val) {

@@ -33,6 +33,8 @@ class YarnVoxel : public Object {
 	float DivideForChunkHeight;
 	float BaseTerrainHeight; // Minimum height of terrain.
 	float TerrainHeightRange; // The max height (above BaseTerrainHeight) our terrain can be.
+	bool calculate_custom_normals;
+	bool serialize_when_generating;
 
 protected:
 	static void _bind_methods();
@@ -50,7 +52,6 @@ public:
 	bool get_is_generating() const {return is_generating;}
 	bool is_debugging_chunk;
 	bool is_triple_polycount;
-	bool is_enabled;
 	bool generate_grass{};
 	void set_generate_grass(bool status) {generate_grass = status;}
 	bool get_generate_grass() const {return generate_grass;}
@@ -60,6 +61,11 @@ public:
 	Ref<Material> grass_material;
 	void set_grass_material(const Ref<Material> &m) {grass_material = m;}
 	Ref<Material> get_grass_material() const {return grass_material;}
+	void set_calculate_custom_normals(bool enabled) {calculate_custom_normals = enabled;}
+	bool get_calculate_custom_normals() const {return calculate_custom_normals;}
+	void set_serialize_when_generating(bool enabled) {serialize_when_generating = enabled;}
+	bool get_serialize_when_generating() const {return serialize_when_generating;}
+
 
 	Vector3i debuggin_chunk;
 	Vector3i right = Vector3i(1, 0, 0);

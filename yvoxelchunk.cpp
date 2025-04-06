@@ -202,14 +202,12 @@ void YVoxelChunk::generate() {
     }
 #endif
     if(!root_collision_instance.is_valid()) {
-        if(!root_collision_shape.is_valid() || root_collision_shape.is_null()) {
-            root_collision_shape.instantiate();
-        }
-        root_collision_shape->set_meta(SNAME("_skip_save_"), true);
         root_collision_instance = PhysicsServer3D::get_singleton()->body_create();
+        root_collision_shape = PhysicsServer3D::get_singleton()->concave_polygon_shape_create();
+
         PhysicsServer3D::get_singleton()->body_set_mode(root_collision_instance, PhysicsServer3D::BODY_MODE_STATIC);
         PhysicsServer3D::get_singleton()->body_set_state(root_collision_instance, PhysicsServer3D::BODY_STATE_TRANSFORM, get_global_transform());
-        PhysicsServer3D::get_singleton()->body_add_shape(root_collision_instance, root_collision_shape->get_rid());
+        PhysicsServer3D::get_singleton()->body_add_shape(root_collision_instance, root_collision_shape);
         PhysicsServer3D::get_singleton()->body_set_space(root_collision_instance, get_world_3d()->get_space());
         PhysicsServer3D::get_singleton()->body_attach_object_instance_id(root_collision_instance, get_instance_id());
         set_collision_layer(collision_layer);
@@ -218,6 +216,8 @@ void YVoxelChunk::generate() {
     }
     //TIMING!
     auto start = std::chrono::high_resolution_clock::now();
+
+    auto start_neighbour_cache = std::chrono::high_resolution_clock::now();
     water_level = YarnVoxel::get_singleton()->water_level;
     const YarnVoxelData::YVPointValue defaultValue = YarnVoxelData::YVPointValue();
     data.clear();
@@ -295,29 +295,40 @@ void YVoxelChunk::generate() {
         }
     }
 
+    // Stop the clock
+    if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+        auto stop = std::chrono::high_resolution_clock::now();
+        // Calculate the duration in microseconds
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_neighbour_cache);
+        // Print the duration
+        print_line(get_name()," Finished caching neighbours: ", duration.count(),"us");
+    }
 
+    auto start_marching_cubes = std::chrono::high_resolution_clock::now();
     constexpr uint8_t hint_is_count = 254;
     uint16_t count = 0;
     uint8_t value = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].byteValue;
     int16_t floatValue = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].floatValue;
-
-    uint8_t debugging_config = YarnVoxel::get_singleton()->get_debugging_config();
+    const bool serialize_when_generating = YarnVoxel::get_singleton()->get_serialize_when_generating();
+    const uint8_t debugging_config = YarnVoxel::get_singleton()->get_debugging_config();
     for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
         for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
             for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++){
-                // START SERIALIZATION SECTION
-                if (points[x][y][z].byteValue == value && compare_float_values_sameish(floatValue, points[x][y][z].floatValue)) {
-                    ++count;
-                } else {
-                    handle_serialization_count(hint_is_count, count, value, floatValue);
-                    value = points[x][y][z].byteValue;
-                    floatValue = points[x][y][z].floatValue;
-                    count = 1;
+                if (serialize_when_generating) {
+                    // START SERIALIZATION SECTION
+                    if (points[x][y][z].byteValue == value && compare_float_values_sameish(floatValue, points[x][y][z].floatValue)) {
+                        ++count;
+                    } else {
+                        handle_serialization_count(hint_is_count, count, value, floatValue);
+                        value = points[x][y][z].byteValue;
+                        floatValue = points[x][y][z].floatValue;
+                        count = 1;
+                    }
+                    if (z == YARNVOXEL_CHUNK_WIDTH-1 && x == YARNVOXEL_CHUNK_WIDTH -1 && y == 0) {
+                        handle_serialization_count(hint_is_count, count, value, floatValue);
+                    }
+                    // END SERIALIZATION SECTION
                 }
-                if (z == YARNVOXEL_CHUNK_WIDTH-1 && x == YARNVOXEL_CHUNK_WIDTH -1 && y == 0) {
-                    handle_serialization_count(hint_is_count, count, value, floatValue);
-                }
-                // END SERIALIZATION SECTION
 
                 //if (YarnVoxel::get_singleton()->is_debugging_chunk && (z != 0)) continue;
                 int corner_index = 0;
@@ -332,15 +343,28 @@ void YVoxelChunk::generate() {
                     }
                     corner_index = corner_index+1;
                 }
-                MarchCube(Vector3i(x, y, z),GetCubeConfiguration(),relevant_byte, cube[0]->health,debugging_config);
+                MarchCube(Vector3i(x, y, z), GetCubeConfiguration(), relevant_byte, cube[0]->health, debugging_config);
             }
         }
     }
 
-    Ref<SurfaceTool> surface_tool = Ref<SurfaceTool>(memnew(SurfaceTool));
-    surface_tool->begin(Mesh::PRIMITIVE_TRIANGLES);
+    // Stop the clock
+    if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+        auto stop = std::chrono::high_resolution_clock::now();
+        // Calculate the duration in microseconds
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_marching_cubes);
+        // Print the duration
+        print_line(get_name()," Finished marching cubes: ", duration.count(),"us");
+    }
 
-    set_mesh(memnew(ArrayMesh));
+    // Clear existing mesh data
+    vertices.clear();
+    normals.clear();
+    uvs.clear();
+    indices.clear();
+    colors.clear();
+
+    
 
     Ref<Material> use_material = YarnVoxel::get_singleton()->get_material();
     if (use_material.is_valid()) {
@@ -350,126 +374,179 @@ void YVoxelChunk::generate() {
             set_surface_override_material(0,use_material);
         }
     }
-    auto vertex_array = &surface_tool->get_vertex_array();
-    for (auto triangle : mesh_triangles) {
-        Color desiredColor = YarnVoxelData::BlockTypeToColor[VariantUtilityFunctions::clampi(triangle.desiredByte,0,10)];
+    
+    // Check if we should use custom normal calculation
+    bool use_custom_calculation = YarnVoxel::get_singleton()->get_calculate_custom_normals();
+    
+    auto start_normal_calculation = std::chrono::high_resolution_clock::now();
+    
+    // Lambda for calculating normals from density field gradient
+    auto calc_normal = [this](const Vector3& vertex_pos) -> Vector3 {
+        Vector3i point_pos = YarnVoxel::GetPointNumberFromPosition(vertex_pos + bottom_corner_world_pos);
+        
+        // Sample densities in 6 directions using cached points data
+        float dx = int16ToFloat(points[point_pos.x + 1][point_pos.y][point_pos.z].floatValue) - 
+                int16ToFloat(points[point_pos.x - 1][point_pos.y][point_pos.z].floatValue);
+        float dy = int16ToFloat(points[point_pos.x][point_pos.y + 1][point_pos.z].floatValue) - 
+                int16ToFloat(points[point_pos.x][point_pos.y - 1][point_pos.z].floatValue);
+        float dz = int16ToFloat(points[point_pos.x][point_pos.y][point_pos.z + 1].floatValue) - 
+                int16ToFloat(points[point_pos.x][point_pos.y][point_pos.z - 1].floatValue);
+        
+        return Vector3(-dx, -dy, -dz).normalized();
+    };
+
+    // Optimized approach with index reuse
+    for (auto& triangle : mesh_triangles) {
+        Color desiredColor = YarnVoxelData::BlockTypeToColor[VariantUtilityFunctions::clampi(triangle.desiredByte, 0, 10)];
         desiredColor.a = YarnVoxelData::ByteToFloat01[triangle.health];
-
-        surface_tool->set_uv(Vector2(0, 0));
-        surface_tool->set_smooth_group(1);
-
-        // Calculate normal from density field gradient at each vertex
-        auto calc_normal = [this](const Vector3& vertex_pos) -> Vector3 {
-            Vector3i point_pos = YarnVoxel::GetPointNumberFromPosition(vertex_pos + bottom_corner_world_pos);
-            
-            // Sample densities in 6 directions using cached points data
-            float dx = int16ToFloat(points[point_pos.x + 1][point_pos.y][point_pos.z].floatValue) - 
-                      int16ToFloat(points[point_pos.x - 1][point_pos.y][point_pos.z].floatValue);
-            float dy = int16ToFloat(points[point_pos.x][point_pos.y + 1][point_pos.z].floatValue) - 
-                      int16ToFloat(points[point_pos.x][point_pos.y - 1][point_pos.z].floatValue);
-            float dz = int16ToFloat(points[point_pos.x][point_pos.y][point_pos.z + 1].floatValue) - 
-                      int16ToFloat(points[point_pos.x][point_pos.y][point_pos.z - 1].floatValue);
-            
-            return Vector3(-dx, -dy, -dz).normalized();
-        };
-
+        
+        // Process vertex 1
         auto* index1_pointer = output_pos_to_index.getptr(triangle.v1);
         int index1;
-
-        surface_tool->set_color(desiredColor);
-        Vector3 normal1 = calc_normal(triangle.v1);
-        surface_tool->set_normal(normal1);
-        Vector3 tangent = normal1.cross(Vector3(0, 1, 0));
-        if (tangent.length_squared() < 0.001f) {
-            tangent = normal1.cross(Vector3(0, 0, 1));
-        }
-        tangent.normalize();
-        surface_tool->set_tangent(Plane(tangent, 1.0f));
+        
+        faces.push_back(triangle.v3);
 
         if (index1_pointer == nullptr) {
-            index1 = static_cast<int>(vertex_array->size());
-            surface_tool->add_vertex(triangle.v1);
+            index1 = vertices.size();
+            vertices.push_back(triangle.v1);
+            if (!use_custom_calculation)
+                normals.push_back(calc_normal(triangle.v1));
+            uvs.push_back(Vector2(0, 0));
+            colors.push_back(desiredColor);
             output_pos_to_index[triangle.v1] = index1;
         } else {
             index1 = *index1_pointer;
-            if (static_cast<int>(vertex_array->size()) > index1) {
-                auto vertexFound = (&(vertex_array->operator[](index1)));
-                vertexFound->color = desiredColor;
+            if (index1 < colors.size()) {
+                colors.write[index1] = desiredColor;
             }
         }
-
+        
+        // Process vertex 2
         auto* index2_pointer = output_pos_to_index.getptr(triangle.v2);
         int index2;
-        Vector3 normal2 = calc_normal(triangle.v2);
-        surface_tool->set_normal(normal2);
-        tangent = normal2.cross(Vector3(0, 1, 0));
-        if (tangent.length_squared() < 0.001f) {
-            tangent = normal2.cross(Vector3(0, 0, 1));
-        }
-        tangent.normalize();
-        surface_tool->set_tangent(Plane(tangent, 1.0f));
-
+        
         if (index2_pointer == nullptr) {
-            index2 = static_cast<int>(surface_tool->get_vertex_array().size());
-            surface_tool->add_vertex(triangle.v2);
+            index2 = vertices.size();
+            vertices.push_back(triangle.v2);
+            if (!use_custom_calculation)
+                normals.push_back(calc_normal(triangle.v2));
+            uvs.push_back(Vector2(0, 0));
+            colors.push_back(desiredColor);
             output_pos_to_index[triangle.v2] = index2;
         } else {
             index2 = *index2_pointer;
-            if (static_cast<int>(vertex_array->size()) > index2) {
-                auto vertexFound = (&(vertex_array->operator[](index2)));
-                vertexFound->color = desiredColor;
+            if (index2 < colors.size()) {
+                colors.write[index2] = desiredColor;
             }
         }
-
+        faces.push_back(triangle.v2);
+        
+        // Process vertex 3
         auto* index3_pointer = output_pos_to_index.getptr(triangle.v3);
         int index3;
-        Vector3 normal3 = calc_normal(triangle.v3);
-        surface_tool->set_normal(normal3);
-        tangent = normal3.cross(Vector3(0, 1, 0));
-        if (tangent.length_squared() < 0.001f) {
-            tangent = normal3.cross(Vector3(0, 0, 1));
-        }
-        tangent.normalize();
-        surface_tool->set_tangent(Plane(tangent, 1.0f));
-
+        
         if (index3_pointer == nullptr) {
-            index3 = static_cast<int>(surface_tool->get_vertex_array().size());
-            surface_tool->add_vertex(triangle.v3);
+            index3 = vertices.size();
+            vertices.push_back(triangle.v3);
+            
+            if (!use_custom_calculation)
+                normals.push_back(calc_normal(triangle.v3));
+            uvs.push_back(Vector2(0, 0));
+            colors.push_back(desiredColor);
             output_pos_to_index[triangle.v3] = index3;
         } else {
             index3 = *index3_pointer;
-            if (static_cast<int>(vertex_array->size()) > index3) {
-                auto vertexFound = (&(vertex_array->operator[](index3)));
-                vertexFound->color = desiredColor;
+            if (index3 < colors.size()) {
+                colors.write[index3] = desiredColor;
             }
         }
+        faces.push_back(triangle.v1);
 
-        surface_tool->add_index(index1);
-        surface_tool->add_index(index3);
-        surface_tool->add_index(index2);
+        // Add indices for this triangle
+        indices.push_back(index1);
+        indices.push_back(index3);
+        indices.push_back(index2);
     }
-
-    if (output_pos_to_index.size() >= 3) {
-        auto mesharray = surface_tool->commit();
-        auto array_index_length = mesharray->surface_get_array_index_len(0);
-        mesharray->set_meta(SNAME("_skip_save_"), true);
-        set_mesh(mesharray);
-        root_collision_shape->set_faces(get_mesh()->create_trimesh_shape()->get_faces());
-        root_collision_shape->set_meta(SNAME("_skip_save_"), true);
-        set_name(vformat("Chunk: %s tris: %s",chunk_number,array_index_length));
-        //print_line("Generated ",get_name());
-    } else {
-        //print_line("Chunk number ",chunk_number," didn't have any triangles to generate " , get_instance_id());
+    if (use_custom_calculation) {
+        // Calculate normals if not using custom calculation
+        if (!vertices.is_empty()) {
+            normals.resize(vertices.size());
+            
+            // Simple flat normal calculation for each triangle
+            for (size_t i = 0; i < indices.size(); i += 3) {
+                Vector3 v1 = vertices[indices[i]];
+                Vector3 v2 = vertices[indices[i + 1]];
+                Vector3 v3 = vertices[indices[i + 2]];
+                
+                Vector3 normal = (v2 - v1).cross(v3 - v1).normalized();
+                
+                // Assign the same normal to all three vertices of this triangle
+                normals.write[indices[i]] = normal;
+                normals.write[indices[i + 1]] = normal;
+                normals.write[indices[i + 2]] = normal;
+            }
+        }
     }
-
-    emit_signal(completed_generation,chunk_number);
 
     // Stop the clock
-    auto stop = std::chrono::high_resolution_clock::now();
-    // Calculate the duration in microseconds
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    // Print the duration
-    //print_line(get_name()," Time taken by generation: ", duration.count(),"ms");
+    if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+        auto stop = std::chrono::high_resolution_clock::now();
+        // Calculate the duration in microseconds
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_normal_calculation);
+        // Print the duration
+        print_line(get_name()," Finished calculating normals: ", duration.count(),"us");
+    }
+
+    if (!vertices.is_empty() && vertices.size() >= 3) {
+        auto start_mesh_commit = std::chrono::high_resolution_clock::now();
+        
+        // Create mesh arrays
+        Array arrays;
+        arrays.resize(Mesh::ARRAY_MAX);
+        arrays[Mesh::ARRAY_VERTEX] = vertices;
+        arrays[Mesh::ARRAY_NORMAL] = normals;
+        arrays[Mesh::ARRAY_TEX_UV] = uvs;
+        arrays[Mesh::ARRAY_COLOR] = colors;
+        arrays[Mesh::ARRAY_INDEX] = indices;
+        
+        Ref<ArrayMesh> new_mesh;
+        new_mesh.instantiate();
+        // Create the mesh
+        new_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+        new_mesh->set_meta(SNAME("_skip_save_"), true);
+        
+        if (new_mesh.is_valid()) {
+            set_mesh(new_mesh);
+        }
+        // Stop the clock
+        if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+            auto stop = std::chrono::high_resolution_clock::now();
+            // Calculate the duration in microseconds
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_mesh_commit);
+            // Print the duration
+            print_line(get_name()," Finished creating mesh: ", duration.count(),"us");
+        }
+
+        if (faces.size() > 0) {
+            set_physics_process(true);
+        }
+
+        set_name(vformat("Chunk: %s tris: %s", chunk_number, indices.size() / 3));
+    } else {
+        //print_line("Chunk number ", chunk_number, " didn't have any triangles to generate ", get_instance_id());
+    }
+
+
+    emit_signal(completed_generation, chunk_number);
+
+    // Stop the clock
+    if (YarnVoxel::get_singleton()->get_debugging_config() > 0) {
+        auto stop = std::chrono::high_resolution_clock::now();
+        // Calculate the duration in microseconds
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+        // Print the duration
+        print_line(get_name()," Time taken by generation: ", duration.count(),"us");
+    }
     has_first_generated = true;
     //TODO: GRASS
     // if(generate_grass && grass_multimesh != nullptr) {
@@ -517,7 +594,7 @@ void YVoxelChunk::populate_chunk_3d() {
         set_chunk_number(chunk_number);
     }
     //TIMING!
-    const auto start = std::chrono::high_resolution_clock::now();
+    // const auto start = std::chrono::high_resolution_clock::now();
     const auto yvm = YarnVoxel::get_singleton();
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
@@ -547,9 +624,9 @@ void YVoxelChunk::populate_chunk_3d() {
             }
 
     // Stop the clock
-    const auto stop = std::chrono::high_resolution_clock::now();
+    // const auto stop = std::chrono::high_resolution_clock::now();
     // Calculate the duration in microseconds
-    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    // const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
     // Print the duration
     //print_line("Time taken by populating 3d terrain: ", duration.count(),"ms");
     yvm->set_dirty_chunk(chunk_number);
@@ -639,7 +716,7 @@ void YVoxelChunk::clear_triangles() {
 void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config) {
     bool is_triple_polycount = YarnVoxel::get_singleton()->is_triple_polycount;
     // If the configuration of this cube is 0 or 255 (completely inside the terrain or completely outside of it) we don't need to do anything.
-    if (configIndex == 0 || configIndex == 255 || (debugging_config != 0 && debugging_config != configIndex)) return;
+    if (configIndex == 0 || configIndex == 255) return;
     Vector3 triangleVert1 = YARNVOXEL_VECTOR3_ZERO, triangleVert2 = YARNVOXEL_VECTOR3_ZERO;
     const Vector3 posBlockBottomCorner = position;
     int currentTriangleCount = 0;
@@ -779,6 +856,12 @@ void YVoxelChunk::_notification(int p_what) {
             }
 		}
         break;
+        case NOTIFICATION_PHYSICS_PROCESS: {
+            if(has_done_ready && is_inside_tree()) {
+                do_physics_process();
+            }
+        }
+        break;
         case NOTIFICATION_PARENTED: {
         }
         break;
@@ -838,6 +921,28 @@ void YVoxelChunk::do_ready() {
     has_done_ready=true;
 }
 
+void YVoxelChunk::do_physics_process() {
+    if (root_collision_instance.is_valid() && faces.size() > 0) {
+        // Set collision data
+        Dictionary d;
+        d["faces"] = faces;
+        d["backface_collision"] = false;
+
+        auto start_set_collision_data = std::chrono::high_resolution_clock::now();
+        PhysicsServer3D::get_singleton()->shape_set_data(root_collision_shape, d);
+        
+        // Stop the clock
+        if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+            auto stop = std::chrono::high_resolution_clock::now();
+            // Calculate the duration in microseconds
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_set_collision_data);
+            // Print the duration
+            print_line(get_name()," Finished Setting Mesh Collision: ", duration.count(),"us");
+        }
+        // PhysicsServer3D::get_singleton()->body_set_state(root_collision_instance, PhysicsServer3D::BODY_STATE_TRANSFORM, get_global_transform());
+    }
+    set_physics_process(false);
+}
 void YVoxelChunk::do_process() {
     const auto yv = YarnVoxel::get_singleton();
     // if(!has_done_ready) {
@@ -1045,10 +1150,13 @@ YVoxelChunk::~YVoxelChunk() {
     YarnVoxel::yvchunks.erase(chunk_number);
     if (root_collision_instance.is_valid()) {
         if (PhysicsServer3D::get_singleton() != nullptr)
+        {
             PhysicsServer3D::get_singleton()->free(root_collision_instance);
+        }
         root_collision_instance = RID();
     }
-    if (!root_collision_shape.is_null() && root_collision_shape.is_valid()) {
-        root_collision_shape.unref();
+    if (root_collision_shape.is_valid() && PhysicsServer3D::get_singleton() != nullptr) {
+        PhysicsServer3D::get_singleton()->free(root_collision_shape);
+        root_collision_shape = RID();
     }
 }
