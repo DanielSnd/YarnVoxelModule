@@ -668,6 +668,7 @@ void IslandGenerator::generate_chunk(Vector3i chunk_number, bool force_cave, boo
     // Calculate world position of chunk start
     Vector3 chunk_world_pos = chunk->get_world_pos_from_point_number(Vector3i(0, 0, 0));
     
+    bool is_room = false;
     // Generate the chunk
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++) {
@@ -680,7 +681,7 @@ void IslandGenerator::generate_chunk(Vector3i chunk_number, bool force_cave, boo
                 Vector3 world_pos = chunk_world_pos + Vector3(x, y, z);
                 
                 float density = CLAMP(world_pos.y - desiredHeight, -1, 1);
-                
+                is_room = false;
                 // Apply 3D noise for caves if above minimum height
                 if (world_pos.y >= min_cave_height || force_cave) {
                     auto density3d = GetDensity3D(world_pos.x, world_pos.y, world_pos.z, density, desiredHeight);
@@ -688,7 +689,11 @@ void IslandGenerator::generate_chunk(Vector3i chunk_number, bool force_cave, boo
                     
                     // Apply room generation if we're in cave territory
                     if (density3d.y > 0.1f || force_cave) {
-                        density = GetRoomDensityModifier(world_pos, density);
+                        Vector2 room_density = GetRoomDensityModifier(world_pos, density);
+                        if (room_density.y > room_threshold) {
+                            density = room_density.x;
+                            is_room = true;
+                        }
                     }
                 }
 
@@ -700,7 +705,9 @@ void IslandGenerator::generate_chunk(Vector3i chunk_number, bool force_cave, boo
                     if (!force_cave && world_pos.y <= water_level + 1.0f) {
                         block_type = YarnVoxel::BlockType::SAND;
                     }
-                    
+                    if (is_room) {
+                        block_type = YarnVoxel::BlockType::DIRT;
+                    }
                     chunk->points[x][y][z] = YarnVoxelData::YVPointValue(block_type, floatToInt16(density));
                 }
             }
@@ -744,7 +751,7 @@ Vector2 IslandGenerator::GetRoomNoise(float x, float z) const {
     return Vector2(room_value, floor_height);
 }
 
-float IslandGenerator::GetRoomDensityModifier(const Vector3& world_pos, float base_density) const {
+Vector2 IslandGenerator::GetRoomDensityModifier(const Vector3& world_pos, float base_density) const {
     // Get room noise at this position
     Vector2 room_data = GetRoomNoise(world_pos.x, world_pos.z);
     float room_value = room_data.x;
@@ -769,5 +776,5 @@ float IslandGenerator::GetRoomDensityModifier(const Vector3& world_pos, float ba
         }
     }
     
-    return base_density;
+    return Vector2(base_density, room_value);
 }

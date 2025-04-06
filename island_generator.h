@@ -27,7 +27,7 @@ protected:
 private:
     // Room generation helper methods
     Vector2 GetRoomNoise(float x, float z) const;
-    float GetRoomDensityModifier(const Vector3& world_pos, float base_density) const;
+    Vector2 GetRoomDensityModifier(const Vector3& world_pos, float base_density) const;
 
 public:
     Array gen_effects;
