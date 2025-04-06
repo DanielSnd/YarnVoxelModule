@@ -460,7 +460,7 @@ void YVoxelChunk::generate() {
             normals.resize(vertices.size());
             
             // Simple flat normal calculation for each triangle
-            for (size_t i = 0; i < indices.size(); i += 3) {
+            for (int i = 0; i < indices.size(); i += 3) {
                 Vector3 v1 = vertices[indices[i]];
                 Vector3 v2 = vertices[indices[i + 1]];
                 Vector3 v3 = vertices[indices[i + 2]];
