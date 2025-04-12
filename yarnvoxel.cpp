@@ -908,10 +908,14 @@ bool YarnVoxel::handle_dirty_chunks() {
 	DirtyChunksQueue.remove_at(0);
 	YVoxelChunk* found_chunk = nullptr;
 	if(try_get_chunk(current_chunk, found_chunk)) {
-		found_chunk->clear_triangles();
-		found_chunk->connect(found_chunk->completed_generation,callable_chunk_completed_callback, CONNECT_ONE_SHOT);
-		//print_line("connecting ",found_chunk->completed_generation," to ", callable_chunk_completed_callback);
-		found_chunk->generate();
+		if (found_chunk->is_inside_tree()) {
+			found_chunk->clear_triangles();
+			found_chunk->connect(found_chunk->completed_generation,callable_chunk_completed_callback, CONNECT_ONE_SHOT);
+			//print_line("connecting ",found_chunk->completed_generation," to ", callable_chunk_completed_callback);
+			found_chunk->generate();
+		} else {
+			is_generating = false;
+		}
 	} else {
 		WARN_PRINT(vformat("Failed to find chunk number %s. Current chunks in dictionary %d",current_chunk,yvchunks.size()));
 		is_generating=false;

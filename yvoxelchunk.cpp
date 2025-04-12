@@ -193,6 +193,9 @@ void YVoxelChunk::clear_all_points() {
 }
 
 void YVoxelChunk::generate() {
+    if (!is_inside_tree()) {
+        return;
+    }
     //print_line("Calling generate on ",chunk_number, " Editor hint: ",Engine::get_singleton()->is_editor_hint()," Is inside Tree: ", !is_inside_tree());
 #ifdef TOOLS_ENABLED
     if(Engine::get_singleton()->is_editor_hint() && !is_inside_tree()) {
@@ -221,7 +224,7 @@ void YVoxelChunk::generate() {
     water_level = YarnVoxel::get_singleton()->water_level;
     const YarnVoxelData::YVPointValue defaultValue = YarnVoxelData::YVPointValue();
     data.clear();
-
+    
     for (int nbx = 0; nbx < 2; nbx++) {
         for (int nby = 0; nby < 2; nby++) {
             for (int nbz = 0; nbz < 2; nbz++) {
@@ -230,6 +233,13 @@ void YVoxelChunk::generate() {
                     continue;
                 }
                 bool has_neighbor = has_neighbour_chunks[nbx][nby][nbz];
+
+                if (has_neighbor && neighbour_chunks[nbx][nby][nbz] == nullptr)
+                    {
+                        has_neighbor = false;
+                        has_neighbour_chunks[nbx][nby][nbz] = false;
+                    }
+
                 YVoxelChunk* neighbour_chunk = has_neighbor ? neighbour_chunks[nbx][nby][nbz] : nullptr;
                 auto currentDirection = Vector3i(nbx, nby, nbz);
                 if (nbx == 1 && nby == 1 && nbz == 1) { currentDirection = Vector3i(1,1,1);}
@@ -249,7 +259,9 @@ void YVoxelChunk::generate() {
                         }
                     }
                 }
-
+                if (has_neighbor && (neighbour_chunk == nullptr || !neighbour_chunk->is_inside_tree())) {
+                    has_neighbor = false;
+                }
                 if (nbx == 1 && nby == 1 && nbz == 1) {
                     points[YARNVOXEL_CHUNK_WIDTH][YARNVOXEL_CHUNK_HEIGHT][YARNVOXEL_CHUNK_WIDTH] =
                         has_neighbor ? neighbour_chunk->points[0][0][0]: defaultValue;
@@ -856,7 +868,9 @@ void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desired
                     YarnVoxelData::YVTriangleData newTriangleData = YarnVoxelData::YVTriangleData(triangleVert1, triangleVert2, vertPosition, desiredByte,health);
                     if (!has_first_generated && !already_has_prop) {
                         auto triangleSlope = YarnVoxelData::SlopeTriangleTable[configIndex][trianglesCreated];
-                        if (triangleSlope < 48 && triangleSlope >= 0 && bottom_corner_world_pos.y + triangleVert1.y > water_level + 1.0f) {
+                        if (triangleSlope < 48 && triangleSlope >= 0
+                        /*&& bottom_corner_world_pos.y + triangleVert1.y > water_level + 1.0f*/
+                        ) {
                             auto propTriangle = YarnVoxelData::YVPropTriangleData(chunk_number, triangleVert1,triangleVert2,vertPosition, Vector2i(configIndex,trianglesCreated), desiredByte);
                             possible_prop_places.append(propTriangle);
                             //TODO: GRASS
@@ -1022,6 +1036,9 @@ void YVoxelChunk::do_physics_process() {
     set_physics_process(false);
 }
 void YVoxelChunk::do_process() {
+    if (!is_inside_tree()) {
+        return;
+    }
     const auto yv = YarnVoxel::get_singleton();
     // if(!has_done_ready) {
     //     do_ready();
