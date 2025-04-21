@@ -313,7 +313,7 @@ void YVoxelChunk::generate() {
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_neighbour_cache);
         // Print the duration
-        print_line(get_name()," Finished caching neighbours: ", duration.count(),"us");
+        print_line(vformat("%s Finished caching neighbours: %s us",get_name(), static_cast<int64_t>(duration.count())));
     }
 
     auto start_marching_cubes = std::chrono::high_resolution_clock::now();
@@ -366,7 +366,7 @@ void YVoxelChunk::generate() {
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_marching_cubes);
         // Print the duration
-        print_line(get_name()," Finished marching cubes: ", duration.count(),"us");
+        print_line(vformat("%s Finished marching cubes: %s us",get_name(), static_cast<int64_t>(duration.count())));
     }
 
     // Clear existing mesh data
@@ -479,7 +479,7 @@ void YVoxelChunk::generate() {
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_normal_calculation);
         // Print the duration
-        print_line(get_name()," Finished calculating normals: ", duration.count(),"us");
+        print_line(vformat("%s Finished calculating normals: %s us",get_name(), static_cast<int64_t>(duration.count())));
     }
 
     if (!vertices.is_empty() && vertices.size() >= 3) {
@@ -509,7 +509,7 @@ void YVoxelChunk::generate() {
             // Calculate the duration in microseconds
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_mesh_commit);
             // Print the duration
-            print_line(get_name()," Finished creating mesh: ", duration.count(),"us");
+            print_line(vformat("%s Finished creating mesh: %s us",get_name(), static_cast<int64_t>(duration.count())));
         }
 
         if (indices.size() > 0) {
@@ -539,7 +539,7 @@ void YVoxelChunk::generate() {
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
         // Print the duration
-        print_line(get_name()," Time taken by generation: ", duration.count(),"us");
+        print_line(vformat("%s Time taken by generation: %s us",get_name(), static_cast<int64_t>(duration.count())));
     }
     has_first_generated = true;
     //TODO: GRASS
@@ -643,7 +643,7 @@ void YVoxelChunk::optimize_faces(float p_simplification_dist) {
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_optimize_faces);
         // Print the duration
-        print_line(get_name()," Finished Optimizing Faces for collision: ", duration.count(),"us");
+        print_line(vformat("%s Finished Optimizing Faces for collision: %s us",get_name(), static_cast<int64_t>(duration.count())));
     }
 
     faces.clear();
@@ -665,7 +665,7 @@ void YVoxelChunk::optimize_faces(float p_simplification_dist) {
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_set_collision_data);
         // Print the duration
-        print_line(get_name()," Finished Setting Mesh Collision: ", duration.count(),"us");
+        print_line(vformat("%s Finished Setting Mesh Collision: %s us",get_name(), static_cast<int64_t>(duration.count())));
     }
 
 }
