@@ -8,7 +8,6 @@ using namespace godot;
 void YarnVoxelEditorPlugin::_notification(int p_what) {
     switch (p_what) {
         case NOTIFICATION_ENTER_TREE: {
-            ProjectSettings::get_singleton()->save();
         	if(is_yvoxel_enabled) {
         		// add_tool_menu_item("Enable voxel painting",callable_mp(this,&YarnVoxelEditorPlugin::enable_voxel_painting));
 

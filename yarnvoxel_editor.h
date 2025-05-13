@@ -155,7 +155,9 @@ class YVoxelChunkEditorPlugin : public EditorPlugin {
 
         inline static YVoxelChunkEditorPlugin* singleton = nullptr;
 
-        static YVoxelChunkEditorPlugin* get_singleton();
+        _FORCE_INLINE_ static YVoxelChunkEditorPlugin* get_singleton() {
+            return singleton;
+        }
     protected:
         Ref<YVoxelChunkInspectorPlugin> inspector_plugin;
 
