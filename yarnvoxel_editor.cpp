@@ -508,14 +508,14 @@ public:
 		// print_line("1.0 ",_yvoxelchunk->floatToInt16(1.0f)," ", _yvoxelchunk->int16ToFloat(_yvoxelchunk->floatToInt16(1.0f)));
 		// print_line("-1.0 ",_yvoxelchunk->floatToInt16(-1.0f)," ", _yvoxelchunk->int16ToFloat(_yvoxelchunk->floatToInt16(-1.0f)));
 
-		int16_t floatconverted = floatToInt16(-0.00824850890785f);
-		auto byte_1 = static_cast<uint8_t>(floatconverted & 0xFF);
-		auto byte_2 = static_cast<uint8_t>((floatconverted >> 8) & 0xFF);
-		auto actual_float_value = int16ToFloat(static_cast<int16_t>(byte_1 | (byte_2 << 8)));
+		// int16_t floatconverted = floatToInt16(-0.00824850890785f);
+		// auto byte_1 = static_cast<uint8_t>(floatconverted & 0xFF);
+		// auto byte_2 = static_cast<uint8_t>((floatconverted >> 8) & 0xFF);
+		// auto actual_float_value = int16ToFloat(static_cast<int16_t>(byte_1 | (byte_2 << 8)));
 		//print_line("-0.00824850890785 to byte and back ",actual_float_value," int16 ",floatconverted," byte 1 ",byte_1," byte 2 ",byte_2);
-		byte_1 = 120;
-		byte_2 = 255;
-		actual_float_value = int16ToFloat(static_cast<int16_t>(byte_1 | (byte_2 << 8)));
+		// byte_1 = 120;
+		// byte_2 = 255;
+		// actual_float_value = int16ToFloat(static_cast<int16_t>(byte_1 | (byte_2 << 8)));
 		//print_line("in theory this is -0.00824850890785 to byte and back ",actual_float_value," int16 ",floatconverted," byte 1 ",byte_1," byte 2 ",byte_2);
 	}
 
