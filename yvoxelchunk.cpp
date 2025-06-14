@@ -11,49 +11,50 @@
 #include "editor/editor_interface.h"
 #endif
 
-//
-// void YVoxelChunk::add(int p_value) {
-//     count += p_value;
-// }
-//
-// void YarnVoxel::multiply(int p_value) {
-//     count *= p_value;
-// }
-//
-// void YarnVoxel::reset() {
-//     count = 0;
-// }
-//
+YarnVoxel* YVoxelChunk::get_parent_yarnvoxel() const {
+    Node* parent = get_parent();
+    while (parent) {
+        YarnVoxel* yarnvoxel = Object::cast_to<YarnVoxel>(parent);
+        if (yarnvoxel) {
+            return yarnvoxel;
+        }
+        parent = parent->get_parent();
+    }
+    return nullptr;
+}
+
 
 void YVoxelChunk::AttemptSetDirtyNeighbour(Vector3i pointHit) const {
+    ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
+    
     // Check which boundaries we're on and mark appropriate neighbors as dirty
     Vector3i offset;
     
     // Check X boundaries
     if (pointHit.x == 0) {
         offset = Vector3i(-1, 0, 0);
-        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+        parent_yarnvoxel->set_dirty_chunk(chunk_number + offset);
     } else if (pointHit.x == YARNVOXEL_CHUNK_WIDTH - 1) {
         offset = Vector3i(1, 0, 0);
-        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+        parent_yarnvoxel->set_dirty_chunk(chunk_number + offset);
     }
     
     // Check Y boundaries
     if (pointHit.y == 0) {
         offset = Vector3i(0, -1, 0);
-        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+        parent_yarnvoxel->set_dirty_chunk(chunk_number + offset);
     } else if (pointHit.y == YARNVOXEL_CHUNK_HEIGHT - 1) {
         offset = Vector3i(0, 1, 0);
-        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+        parent_yarnvoxel->set_dirty_chunk(chunk_number + offset);
     }
     
     // Check Z boundaries
     if (pointHit.z == 0) {
         offset = Vector3i(0, 0, -1);
-        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+        parent_yarnvoxel->set_dirty_chunk(chunk_number + offset);
     } else if (pointHit.z == YARNVOXEL_CHUNK_WIDTH - 1) {
         offset = Vector3i(0, 0, 1);
-        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+        parent_yarnvoxel->set_dirty_chunk(chunk_number + offset);
     }
     
     // Check corners if we're on multiple boundaries
@@ -61,7 +62,7 @@ void YVoxelChunk::AttemptSetDirtyNeighbour(Vector3i pointHit) const {
         (pointHit.z == 0 || pointHit.z == YARNVOXEL_CHUNK_WIDTH - 1)) {
         offset.x = (pointHit.x == 0) ? -1 : 1;
         offset.z = (pointHit.z == 0) ? -1 : 1;
-        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number + offset);
+        parent_yarnvoxel->set_dirty_chunk(chunk_number + offset);
     }
 }
 
@@ -77,6 +78,7 @@ void YVoxelChunk::add_triangle(const YarnVoxelData::YVTriangleData &yv_triangle_
     surface_tool->add_index(count_of_vertex-2);
     surface_tool->add_index(count_of_vertex-1);
 }
+
 void YVoxelChunk::add_triangle(Vector3 vert1,Vector3 vert2,Vector3 vert3,SurfaceTool *surface_tool) {
     surface_tool->set_uv(Vector2(0, 0));
     surface_tool->set_smooth_group(1);
@@ -221,7 +223,9 @@ void YVoxelChunk::generate() {
     auto start = std::chrono::high_resolution_clock::now();
 
     auto start_neighbour_cache = std::chrono::high_resolution_clock::now();
-    water_level = YarnVoxel::get_singleton()->water_level;
+    YarnVoxel* parent = get_parent_yarnvoxel();
+    ERR_FAIL_COND_MSG(!parent, "YVoxelChunk must be a child of a YarnVoxel node");
+    water_level = parent->water_level;
     const YarnVoxelData::YVPointValue defaultValue = YarnVoxelData::YVPointValue();
     data.clear();
     
@@ -247,7 +251,7 @@ void YVoxelChunk::generate() {
                // print_line("");
 
                 if (!has_neighbor) {
-                    has_neighbor = YarnVoxel::try_get_chunk(chunk_number + currentDirection, neighbour_chunk);
+                    has_neighbor = parent->try_get_chunk(chunk_number + currentDirection, neighbour_chunk);
                     if (has_neighbor) {
                         //print_line(" is the neighbour a null pointer? ",neighbour_chunk == nullptr);
                         if (neighbour_chunk == nullptr) {
@@ -308,7 +312,7 @@ void YVoxelChunk::generate() {
     }
 
     // Stop the clock
-    if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+    if (parent->get_debugging_config() > 1) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_neighbour_cache);
@@ -321,8 +325,8 @@ void YVoxelChunk::generate() {
     uint16_t count = 0;
     uint8_t value = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].byteValue;
     int16_t floatValue = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].floatValue;
-    const bool serialize_when_generating = YarnVoxel::get_singleton()->get_serialize_when_generating();
-    const uint8_t debugging_config = YarnVoxel::get_singleton()->get_debugging_config();
+    const bool serialize_when_generating = parent->get_serialize_when_generating();
+    const uint8_t debugging_config = parent->get_debugging_config();
     for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
         for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
             for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++){
@@ -361,7 +365,7 @@ void YVoxelChunk::generate() {
     }
 
     // Stop the clock
-    if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+    if (parent->get_debugging_config() > 1) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_marching_cubes);
@@ -379,7 +383,7 @@ void YVoxelChunk::generate() {
     
 
     // Check if we should use custom normal calculation
-    bool use_custom_calculation = YarnVoxel::get_singleton()->get_calculate_custom_normals();
+    bool use_custom_calculation = parent->get_calculate_custom_normals();
     
     auto start_normal_calculation = std::chrono::high_resolution_clock::now();
     
@@ -474,7 +478,7 @@ void YVoxelChunk::generate() {
     }
 
     // Stop the clock
-    if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+    if (parent->get_debugging_config() > 1) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_normal_calculation);
@@ -504,7 +508,7 @@ void YVoxelChunk::generate() {
             set_mesh(new_mesh);
         }
         // Stop the clock
-        if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+        if (parent->get_debugging_config() > 1) {
             auto stop = std::chrono::high_resolution_clock::now();
             // Calculate the duration in microseconds
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_mesh_commit);
@@ -516,7 +520,7 @@ void YVoxelChunk::generate() {
             set_physics_process(true);
         }
 
-        Ref<Material> use_material = YarnVoxel::get_singleton()->get_material();
+        Ref<Material> use_material = parent->get_material();
         if (use_material.is_valid()) {
             if (get_surface_override_material_count() == 0) {
                 surface_override_materials.append(use_material);
@@ -534,7 +538,7 @@ void YVoxelChunk::generate() {
     emit_signal(completed_generation, chunk_number);
 
     // Stop the clock
-    if (YarnVoxel::get_singleton()->get_debugging_config() > 0) {
+    if (parent->get_debugging_config() > 0) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
@@ -638,7 +642,7 @@ void YVoxelChunk::optimize_faces(float p_simplification_dist) {
 
 
     // Stop the clock
-    if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+    if (parent_yarnvoxel->get_debugging_config() > 1) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_optimize_faces);
@@ -660,7 +664,7 @@ void YVoxelChunk::optimize_faces(float p_simplification_dist) {
     auto start_set_collision_data = std::chrono::high_resolution_clock::now();
     PhysicsServer3D::get_singleton()->shape_set_data(root_collision_shape, d);
     // Stop the clock
-    if (YarnVoxel::get_singleton()->get_debugging_config() > 1) {
+    if (parent_yarnvoxel->get_debugging_config() > 1) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_set_collision_data);
@@ -670,18 +674,18 @@ void YVoxelChunk::optimize_faces(float p_simplification_dist) {
 
 }
 
-void YVoxelChunk::populate_terrain(float height = 8) {
-    const auto yvm = YarnVoxel::get_singleton();
+void YVoxelChunk::populate_terrain(float height) {
+    ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
             for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
                 // Get a terrain height using regular old Perlin noise.
-                const auto thisHeight = yvm->perlin_noise(static_cast<float>(x) / 16 * 1.5 + 0.001, static_cast<float>(z) / 16 * 1.5f + 0.001f);
+                const auto thisHeight = YarnVoxel::static_perlin_noise(static_cast<float>(x) / 16 * 1.5 + 0.001, static_cast<float>(z) / 16 * 1.5f + 0.001f);
 
                 // Set the value of this point in the terrainMap.
                 points[x][y][z] = YarnVoxelData::YVPointValue(1,floatToInt16(static_cast<float>(y) - thisHeight));
             }
-    yvm->set_dirty_chunk(chunk_number);
+    parent_yarnvoxel->set_dirty_chunk(chunk_number);
 }
 
 void YVoxelChunk::test_serialization() {
@@ -690,21 +694,20 @@ void YVoxelChunk::test_serialization() {
     }
     //serialize_to_data();
     deserialize_from_data();
-    YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number);
+    ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
+    parent_yarnvoxel->set_dirty_chunk(chunk_number);
 }
 
 void YVoxelChunk::populate_chunk_3d() {
     if(!has_registered_chunk_number) {
         set_chunk_number(chunk_number);
     }
-    //TIMING!
-    // const auto start = std::chrono::high_resolution_clock::now();
-    const auto yvm = YarnVoxel::get_singleton();
+    ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
             for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
                 // Get a terrain height using regular old Perlin noise.
-                const auto thisHeight = yvm->perlin_noise_3d(static_cast<float>(x) / 16 * 1.5 + 0.001, static_cast<float>(y) / 16 * 1.5f + 0.001f, static_cast<float>(z) / 16 * 1.5f + 0.001f);
+                const auto thisHeight = YarnVoxel::static_perlin_noise_3d(static_cast<float>(x) / 16 * 1.5 + 0.001, static_cast<float>(y) / 16 * 1.5f + 0.001f, static_cast<float>(z) / 16 * 1.5f + 0.001f);
 
                 // Set the value of this point in the terrainMap.
                 points[x][y][z] = YarnVoxelData::YVPointValue(1,floatToInt16(thisHeight));
@@ -727,13 +730,7 @@ void YVoxelChunk::populate_chunk_3d() {
                 }
             }
 
-    // Stop the clock
-    // const auto stop = std::chrono::high_resolution_clock::now();
-    // Calculate the duration in microseconds
-    // const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-    // Print the duration
-    //print_line("Time taken by populating 3d terrain: ", duration.count(),"ms");
-    yvm->set_dirty_chunk(chunk_number);
+    parent_yarnvoxel->set_dirty_chunk(chunk_number);
 }
 
 bool YVoxelChunk::SetPointFromSurrounding(const Vector3i pointNumber, const uint8_t desiredByte, const Vector3i originatorPointNumber) {
@@ -743,10 +740,10 @@ bool YVoxelChunk::SetPointFromSurrounding(const Vector3i pointNumber, const uint
         return true;
     } else {
         const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
-        auto other_chunk_number = YarnVoxel::GetChunkNumberFromPosition(desired_pos_other);
+        auto other_chunk_number = parent_yarnvoxel->GetChunkNumberFromPosition(desired_pos_other);
         YVoxelChunk* neighbour_chunk = nullptr;
-        if(YarnVoxel::try_get_chunk(other_chunk_number,neighbour_chunk)) {
-            const auto other_point_pos = YarnVoxel::GetPointNumberFromPosition(desired_pos_other);
+        if(parent_yarnvoxel->try_get_chunk(other_chunk_number,neighbour_chunk)) {
+            const auto other_point_pos = parent_yarnvoxel->GetPointNumberFromPosition(desired_pos_other);
             neighbour_chunk->SetPointFromSurrounding(other_point_pos,desiredByte, originatorPointNumber);
             return true;
         }
@@ -763,10 +760,10 @@ bool YVoxelChunk::SetPointDensity(const Vector3i pointNumber,const float desired
         return true;
     } else {
         const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
-        auto other_chunk_number = YarnVoxel::GetChunkNumberFromPosition(desired_pos_other);
+        auto other_chunk_number = parent_yarnvoxel->GetChunkNumberFromPosition(desired_pos_other);
         YVoxelChunk* neighbour_chunk = nullptr;
-        if(YarnVoxel::try_get_chunk(other_chunk_number,neighbour_chunk)) {
-            const auto other_point_pos = YarnVoxel::GetPointNumberFromPosition(desired_pos_other);
+        if(parent_yarnvoxel->try_get_chunk(other_chunk_number,neighbour_chunk)) {
+            const auto other_point_pos = parent_yarnvoxel->GetPointNumberFromPosition(desired_pos_other);
             neighbour_chunk->SetPointDensity(other_point_pos,desired_density,desiredByte);
             return true;
         }
@@ -781,10 +778,10 @@ bool YVoxelChunk::SetPoint(const Vector3i pointNumber, const uint8_t desiredByte
         return true;
     } else {
         const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
-        auto other_chunk_number = YarnVoxel::GetChunkNumberFromPosition(desired_pos_other);
+        auto other_chunk_number = parent_yarnvoxel->GetChunkNumberFromPosition(desired_pos_other);
         YVoxelChunk* neighbour_chunk = nullptr;
-        if(YarnVoxel::try_get_chunk(other_chunk_number,neighbour_chunk)) {
-            const auto other_point_pos = YarnVoxel::GetPointNumberFromPosition(desired_pos_other);
+        if(parent_yarnvoxel->try_get_chunk(other_chunk_number,neighbour_chunk)) {
+            const auto other_point_pos = parent_yarnvoxel->GetPointNumberFromPosition(desired_pos_other);
             neighbour_chunk->SetPoint(other_point_pos,desiredByte);
             return true;
         }
@@ -818,7 +815,7 @@ void YVoxelChunk::clear_triangles() {
 }
 
 void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config) {
-    bool is_triple_polycount = YarnVoxel::get_singleton()->is_triple_polycount;
+    bool is_triple_polycount = parent_yarnvoxel->is_triple_polycount;
     // If the configuration of this cube is 0 or 255 (completely inside the terrain or completely outside of it) we don't need to do anything.
     if (configIndex == 0 || configIndex == 255) return;
     Vector3 triangleVert1 = YARNVOXEL_VECTOR3_ZERO, triangleVert2 = YARNVOXEL_VECTOR3_ZERO;
@@ -948,12 +945,39 @@ int YVoxelChunk::GetCubeConfiguration() {
     return configurationIndex;
 }
 
+void YVoxelChunk::_on_tree_exiting() {
+    has_done_ready = false;
+    if (parent_yarnvoxel != nullptr) {
+        parent_yarnvoxel->yvchunks.erase(chunk_number);
+        parent_yarnvoxel = nullptr;
+    }
+    if (root_collision_instance.is_valid()) {
+        if (PhysicsServer3D::get_singleton() != nullptr)
+        {
+            PhysicsServer3D::get_singleton()->free(root_collision_instance);
+        }
+        root_collision_instance = RID();
+    }
+    if (root_collision_shape.is_valid() && PhysicsServer3D::get_singleton() != nullptr) {
+        PhysicsServer3D::get_singleton()->free(root_collision_shape);
+        root_collision_shape = RID();
+    }
+}
+
 void YVoxelChunk::_notification(int p_what) {
+    if (p_what == NOTIFICATION_ENTER_TREE) {
+        parent_yarnvoxel = get_parent_yarnvoxel();
+        ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
+    }
     switch (p_what) {
         case NOTIFICATION_ENTER_TREE: {
-        } break;
-        // case NOTIFICATION_ENTER_WORLD: {
-        // } break;
+            parent_yarnvoxel = get_parent_yarnvoxel();
+            ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
+            if (!is_connected(SceneStringNames::get_singleton()->tree_exiting, callable_mp(this,&YVoxelChunk::_on_tree_exiting))) {
+                connect(SceneStringNames::get_singleton()->tree_exiting, callable_mp(this,&YVoxelChunk::_on_tree_exiting));
+            }
+        }
+        break;
         case NOTIFICATION_EXIT_TREE: {
         }
 		case NOTIFICATION_PROCESS: {
@@ -990,7 +1014,7 @@ void YVoxelChunk::_notification(int p_what) {
 }
 
 void YVoxelChunk::deferred_set_dirty() {
-    YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number);
+    parent_yarnvoxel->set_dirty_chunk(chunk_number);
 }
 
 void YVoxelChunk::do_ready() {
@@ -999,13 +1023,12 @@ void YVoxelChunk::do_ready() {
         return;
     }
     if(!data.is_empty() && data.size() > 10) {
-        YarnVoxel::get_singleton()->set_fallback_main_node(Object::cast_to<Node3D>(get_parent()));
         //print_line("Doing ready ",chunk_number," yvchunks registered ",YarnVoxel::yvchunks.size());
         if(!has_registered_chunk_number){
-            YarnVoxel::yvchunks[chunk_number] = this;
+            parent_yarnvoxel->yvchunks[chunk_number] = get_instance_id();
             //print_line("Doing Do_REady Chunk number ",chunk_number," count of yvchunks registered ",YarnVoxel::yvchunks.size());
         }
-        YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number);
+        parent_yarnvoxel->set_dirty_chunk(chunk_number);
     }
     // if (generate_grass && grass_multimesh == nullptr) {
     //     grass_multimesh = memnew(MultiMeshInstance3D);
@@ -1039,11 +1062,10 @@ void YVoxelChunk::do_process() {
     if (!is_inside_tree()) {
         return;
     }
-    const auto yv = YarnVoxel::get_singleton();
     // if(!has_done_ready) {
     //     do_ready();
     // }
-    if(has_done_ready && yv->handle_dirty_chunks()) {
+    if(has_done_ready && parent_yarnvoxel != nullptr && parent_yarnvoxel->handle_dirty_chunks()) {
         set_process(false);
     }
 }
@@ -1133,11 +1155,11 @@ float YVoxelChunk::get_density_at_point(Vector3i point_pos) {
     
     // Point is in a neighboring chunk
     Vector3 world_pos = get_world_pos_from_point_number(point_pos);
-    Vector3i neighbor_chunk_number = YarnVoxel::GetChunkNumberFromPosition(world_pos);
+    Vector3i neighbor_chunk_number = parent_yarnvoxel->GetChunkNumberFromPosition(world_pos);
     YVoxelChunk* neighbor_chunk = nullptr;
     
-    if (YarnVoxel::try_get_chunk(neighbor_chunk_number, neighbor_chunk)) {
-        Vector3i local_pos = YarnVoxel::GetPointNumberFromPosition(world_pos);
+    if (parent_yarnvoxel->try_get_chunk(neighbor_chunk_number, neighbor_chunk)) {
+        Vector3i local_pos = parent_yarnvoxel->GetPointNumberFromPosition(world_pos);
         if (neighbor_chunk->is_point_position_in_range(local_pos.x, local_pos.y, local_pos.z)) {
             return int16ToFloat(neighbor_chunk->points[local_pos.x][local_pos.y][local_pos.z].floatValue);
         }
@@ -1220,13 +1242,13 @@ void YVoxelChunk::set_chunk_number(Vector3i v) {
     //print_line(get_name(),"Set chunk number (current ",chunk_number," new ",v,") has registered? ",has_registered_chunk_number," has yarn voxel singleton? ",YarnVoxel::get_singleton() != nullptr);
         if (chunk_number != v || !has_registered_chunk_number) {
             YVoxelChunk* find_chunk = nullptr;
-            if(YarnVoxel::try_get_chunk(chunk_number,find_chunk) && find_chunk == this) {
-                YarnVoxel::yvchunks.erase(chunk_number);
+            if(parent_yarnvoxel->try_get_chunk(chunk_number,find_chunk) && find_chunk == this) {
+                parent_yarnvoxel->yvchunks.erase(chunk_number);
             }
-            YarnVoxel::yvchunks[v] = this;
+            parent_yarnvoxel->yvchunks[v] = get_instance_id();
             has_registered_chunk_number=true;
             if(is_inside_tree()) {
-                set_bottom_corner_world_pos(YarnVoxel::get_singleton()->GetBottomCornerForChunkInNumber(chunk_number));
+                set_bottom_corner_world_pos(parent_yarnvoxel->GetBottomCornerForChunkInNumber(chunk_number));
                 set_global_position(bottom_corner_world_pos);
             }
             chunk_number = v;
@@ -1239,9 +1261,11 @@ Vector3 YVoxelChunk::get_world_pos_from_point_number(Vector3i pointNumber) const
 
 void YVoxelChunk::initialize(Vector3i initialize_position) {
     chunk_number = initialize_position;
-    bottom_corner_world_pos = YarnVoxel::get_singleton()->GetBottomCornerForChunkInNumber(initialize_position);
-    set_global_position(bottom_corner_world_pos);
+    has_registered_chunk_number = true;
+    ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
+    parent_yarnvoxel->set_dirty_chunk(chunk_number);
 }
+
 YVoxelChunk::YVoxelChunk() {
     for (int i = 0; i <= YARNVOXEL_CHUNK_WIDTH; ++i) {
         for (int j = 0; j <= YARNVOXEL_CHUNK_HEIGHT; ++j) {
@@ -1254,17 +1278,3 @@ YVoxelChunk::YVoxelChunk() {
     completed_generation = StaticCString::create("completed_generation");
 }
 
-YVoxelChunk::~YVoxelChunk() {
-    YarnVoxel::yvchunks.erase(chunk_number);
-    if (root_collision_instance.is_valid()) {
-        if (PhysicsServer3D::get_singleton() != nullptr)
-        {
-            PhysicsServer3D::get_singleton()->free(root_collision_instance);
-        }
-        root_collision_instance = RID();
-    }
-    if (root_collision_shape.is_valid() && PhysicsServer3D::get_singleton() != nullptr) {
-        PhysicsServer3D::get_singleton()->free(root_collision_shape);
-        root_collision_shape = RID();
-    }
-}

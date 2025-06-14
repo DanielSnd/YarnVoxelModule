@@ -56,31 +56,6 @@ void YarnVoxelEditorPlugin::toggle_bottom_panel() {
 		yvoxel_bottom_panel = memnew(YVoxelEditorBottomPanel);
 		yvoxel_bottom_panel->connect("visibility_changed", callable_mp(this, &YarnVoxelEditorPlugin::update_bottom_visibility));
 	}
-	auto main_node = YarnVoxel::get_singleton()->get_main_node();
-	if (main_node == nullptr) {
-		if (EditorInterface::get_singleton()) {
-			Node *current_scene = EditorInterface::get_singleton()->get_edited_scene_root();
-			if (current_scene != nullptr) {
-				TypedArray<Node> nchildren = current_scene->find_children("*","Camera3D",true);
-				if (nchildren.size() > 0) {
-					auto found_camera = Object::cast_to<Camera3D>(nchildren.pop_front());
-					if (found_camera != nullptr) {
-						auto camera_parent = Object::cast_to<Node3D>(found_camera->get_parent());
-						if (camera_parent != nullptr) {
-							YarnVoxel::get_singleton()->create_main_node_under(camera_parent);
-						}
-					}
-				} else {
-					ERR_PRINT("[YVoxel] Camera 3d not found");
-				}
-			} else {
-				ERR_PRINT("CURRENT SCENE IS NULL");
-			}
-			if (YarnVoxel::get_singleton()->get_main_node() == nullptr) {
-				ERR_PRINT("[YVoxel] YVoxels require a camera 3d in the scene");
-			}
-		}
-	}
 	if (!toggle_can_edit_yvoxel) {
 		if (preview_brush == nullptr) {
 			create_display_brush();
@@ -214,15 +189,21 @@ void YarnVoxelEditorPlugin::handle_holding_down_sculpt() {
 	if (last_actually_sculpted_time + 120UL < OS::get_singleton()->get_ticks_msec()) {
 		last_actually_sculpted_time = OS::get_singleton()->get_ticks_msec();
 		YVoxelChunk* tryChunk = nullptr;
-		//auto pointsPosition = YarnVoxel::GetPointNumberFromPosition(raycast_hit_pos);
-		if(!YarnVoxel::try_get_chunk(chunk_number, tryChunk)) tryChunk = YarnVoxel::get_singleton()->get_chunk(chunk_number);
+
+		Array selected = EditorNode::get_singleton()->get_editor_selection()->get_selected_nodes();
+		if (selected.is_empty())
+			return;
+		YarnVoxel* selected_node = Object::cast_to<YarnVoxel>(selected[0]);
+		if (selected_node == nullptr)
+			return;
+		if(!selected_node->try_get_chunk(chunk_number, tryChunk))
+			tryChunk = selected_node->get_chunk(chunk_number);
 		if (tryChunk != nullptr) {
 			if (is_holding_shift && yvoxel_bottom_panel->current_tool_selected == 0) {
-				YarnVoxel::get_singleton()->smooth_voxel_area(raycast_hit_pos,abs(yvoxel_bottom_panel->brush_strength_value),static_cast<int>(yvoxel_bottom_panel->brush_size_value));
+				selected_node->smooth_voxel_area(raycast_hit_pos,abs(yvoxel_bottom_panel->brush_strength_value),static_cast<int>(yvoxel_bottom_panel->brush_size_value));
 			} else {
 				//tryChunk->SetPointDensity(pointsPosition,-0.5,YarnVoxel::BlockType::GRASS);
-				YarnVoxel::get_singleton()->modify_voxel_area(raycast_hit_pos,yvoxel_bottom_panel->brush_strength_value * (yvoxel_bottom_panel->current_tool_selected == 1 ? -1 : 1) * (is_holding_ctrl ? -1 : 1) * (yvoxel_bottom_panel->current_tool_selected == 2 ? 0 : 1), static_cast<int>(yvoxel_bottom_panel->brush_size_value),yvoxel_bottom_panel->current_block_type_selected + 1);
-				//YarnVoxel::get_singleton()->set_dirty_chunk(chunk_number);
+				selected_node->modify_voxel_area(raycast_hit_pos,yvoxel_bottom_panel->brush_strength_value * (yvoxel_bottom_panel->current_tool_selected == 1 ? -1 : 1) * (is_holding_ctrl ? -1 : 1) * (yvoxel_bottom_panel->current_tool_selected == 2 ? 0 : 1), static_cast<int>(yvoxel_bottom_panel->brush_size_value),yvoxel_bottom_panel->current_block_type_selected + 1);
 			}
 		}
 	}
@@ -282,7 +263,14 @@ void YarnVoxelEditorPlugin::raycast(Camera3D *p_camera, const Ref<InputEvent> &p
 		raycast_hit_normal = Vector3(0.0f,1.0f,0.0f);
 	}
 
-	Vector3i test_chunkNumber = YarnVoxel::GetChunkNumberFromPosition(raycast_hit_pos);
+	Array selected = EditorNode::get_singleton()->get_editor_selection()->get_selected_nodes();
+	if (selected.is_empty())
+		return;
+	YarnVoxel* selected_node = Object::cast_to<YarnVoxel>(selected[0]);
+	if (selected_node == nullptr)
+		return;
+	
+	Vector3i test_chunkNumber = selected_node->GetChunkNumberFromPosition(raycast_hit_pos);
 	if (test_chunkNumber != chunk_number) {
 		chunk_number = test_chunkNumber;
 	}
@@ -292,9 +280,9 @@ void YarnVoxelEditorPlugin::raycast(Camera3D *p_camera, const Ref<InputEvent> &p
 	}
 	YVoxelChunk* find_chunk = nullptr;
 	bool updated_point_data = false;
-	if (YarnVoxel::try_get_chunk(chunk_number, find_chunk)) {
-		const Vector3i blockNumber = YarnVoxel::GetPointNumberFromPosition(Vector3(static_cast<float>(raycast_hit_pos.x),static_cast<float>(raycast_hit_pos.y),static_cast<float>(raycast_hit_pos.z)));
-		if (YarnVoxel::IsPositionValid(blockNumber)) {
+	if (selected_node->try_get_chunk(chunk_number, find_chunk)) {
+		const Vector3i blockNumber = selected_node->GetPointNumberFromPosition(Vector3(static_cast<float>(raycast_hit_pos.x),static_cast<float>(raycast_hit_pos.y),static_cast<float>(raycast_hit_pos.z)));
+		if (selected_node->IsPositionValid(blockNumber)) {
 			auto found_point_data = find_chunk->points[blockNumber.x][blockNumber.y][blockNumber.z];
 			yvoxel_bottom_panel->set_debug_label_text(vformat("Hit Pos: %s, New? %s, Chunk: %s, Point Pos %s, Point Type: %s, Float Value: %s",raycast_hit_pos,is_possible_new_position,chunk_number,blockNumber,found_point_data.byteValue,found_point_data.get_float_value_as_float()));
 		}

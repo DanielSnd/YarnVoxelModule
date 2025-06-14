@@ -85,12 +85,22 @@ public:
 	}
 
 	void _on_generate_button_pressed() {
-		YarnVoxel::get_singleton()->empty_all_chunks();
+		for (ObjectID instanceObjID : YarnVoxel::yarnvoxel_instances) {
+			YarnVoxel* yarnvoxel = Object::cast_to<YarnVoxel>(ObjectDB::get_instance(instanceObjID));
+			if (yarnvoxel) {
+				yarnvoxel->empty_all_chunks();
+			}
+		}
 		_island_generator->generate_island(Vector3((static_cast<float>(_island_generator->map_size.x)*-0.5f),0,static_cast<float>(_island_generator->map_size.y)*0.5f));
 	}
 
 	void _on_clear_all_button_pressed() {
-		YarnVoxel::get_singleton()->clear_all_chunks();
+		for (ObjectID instanceObjID : YarnVoxel::yarnvoxel_instances) {
+			YarnVoxel* yarnvoxel = Object::cast_to<YarnVoxel>(ObjectDB::get_instance(instanceObjID));
+			if (yarnvoxel) {
+				yarnvoxel->clear_all_chunks();
+			}
+		}
 	}
 
 	void _on_random_seed_button_pressed() {

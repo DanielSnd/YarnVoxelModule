@@ -23,6 +23,11 @@
 	<tutorials>
 	</tutorials>
 	<methods>
+		<method name="clear_all_points">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
 		<method name="deferred_set_dirty">
 			<return type="void" />
 			<description>
@@ -68,6 +73,41 @@
 			<return type="int" />
 			<description>
 				Returns the number of grass instances placed on this chunk. Grass can be automatically generated on appropriate terrain surfaces when the YarnVoxel's "generate_grass" option is enabled.
+			</description>
+		</method>
+		<method name="get_prop_place_byte">
+			<return type="int" />
+			<param index="0" name="index" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_prop_place_dot_product">
+			<return type="float" />
+			<param index="0" name="index" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_prop_place_normal">
+			<return type="Vector3" />
+			<param index="0" name="index" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_prop_place_position">
+			<return type="Vector3" />
+			<param index="0" name="index" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_prop_place_slope">
+			<return type="float" />
+			<param index="0" name="index" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_prop_places_count">
+			<return type="int" />
+			<description>
 			</description>
 		</method>
 		<method name="populate_chunk_3d">
@@ -133,6 +173,8 @@
 		</member>
 		<member name="collision_priority" type="float" setter="set_collision_priority" getter="get_collision_priority" default="1.0">
 			The collision priority of this chunk, affecting how it resolves physics interactions. Higher values give this chunk precedence in collision resolution.
+		</member>
+		<member name="simplification_distance" type="float" setter="set_simplification_distance" getter="get_simplification_distance" default="0.1">
 		</member>
 		<member name="status" type="bool" setter="set_has_first_generated" getter="get_has_first_generated" default="false">
 			Whether this chunk has been generated at least once. This is used to track initialization status and avoid redundant operations during the initial setup.

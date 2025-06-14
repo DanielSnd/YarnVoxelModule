@@ -236,7 +236,11 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
     Vector3i previousChunkNumberCached {0,0,0};
     YVoxelChunk* currentIslandChunk = nullptr;
     HashMap<Vector2i,int> highestYWithBlockMap;
-    auto yarnvoxel_singleton = YarnVoxel::get_singleton();
+    
+    ERR_FAIL_COND(YarnVoxel::yarnvoxel_instances.is_empty());
+
+    auto yarnvoxel_singleton = Object::cast_to<YarnVoxel>(ObjectDB::get_instance(YarnVoxel::yarnvoxel_instances[0]));
+
     const int halfSizeX = map_size.x / 2;
     const int halfSizeZ = map_size.y /2;
     int firstXAboveWater = map_size.x + 1;
@@ -246,8 +250,8 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
     int highestYWithBlock = -99;
     // Assuming map_size is a struct or class with x and y members
     // If it's not, replace it with the appropriate type.
-    Ref<ShaderMaterial> current_mat = YarnVoxel::get_singleton()->get_material();
-    if (current_mat.is_valid() && YarnVoxel::get_singleton()->using_default_shader) {
+    Ref<ShaderMaterial> current_mat = yarnvoxel_singleton->get_material();
+    if (current_mat.is_valid() && yarnvoxel_singleton->using_default_shader) {
         current_mat->set_shader_parameter("water_level",water_level);
         Ref<GradientTexture1D> grad_text = (current_mat->get_shader_parameter("gradient"));
         if (!grad_text.is_null() && grad_text.is_valid()) {
@@ -261,7 +265,7 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
             Vector3i newPos = {adjustedPosition(static_cast<int>(realWorldPosition.x), x, halfSizeX), 0, adjustedPosition(static_cast<int>(realWorldPosition.z), z, halfSizeZ)};
             const float terrainFloat = IslandGenerator::GetTerrainHeight(Vector2(static_cast<float>(x), static_cast<float>(z)),false);
             float desiredHeight = (terrainFloat * height_multiplier);
-            bool firstOfItsY = false;
+            // bool firstOfItsY = false;
 
             const int roundedHeight = static_cast<int>(Math::round(desiredHeight));
             map[x][z] = desiredHeight;
@@ -285,21 +289,23 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
                     if (x < firstXAboveWater) firstXAboveWater = x;
                     if (z < firstZAboveWater) firstZAboveWater = z;
                 }
-                Vector3i chunkNumber = YarnVoxel::GetChunkNumberFromPosition(newPos);
+                Vector3i chunkNumber = yarnvoxel_singleton->GetChunkNumberFromPosition(newPos);
                 if ((previousChunkNumberCached != chunkNumber || !hasIslandChunk)) {
                     currentIslandChunk = yarnvoxel_singleton->get_chunk(chunkNumber);
                     hasIslandChunk = true;
                     previousChunkNumberCached = chunkNumber;
                     if(!used_chunks.has(chunkNumber)) {
                         used_chunks.append(chunkNumber);
-                        currentIslandChunk->clear_all_points();
+                        if (currentIslandChunk != nullptr) {
+                            currentIslandChunk->clear_all_points();
+                        }
                     }
                 }
 
                 uint8_t desiredByte = 2;
                 const bool wasAboveInTerrain = currentIsInTerrain;
                 //bool wasAboveReplacedWith3DDensity = currentIsReplacedWith3DDensity;
-                auto pointsPosition = YarnVoxel::GetPointNumberFromPosition(newPos);
+                auto pointsPosition = yarnvoxel_singleton->GetPointNumberFromPosition(newPos);
 
                 float density = CLAMP(static_cast<float>(y) - desiredHeight, -1, 1);
 
@@ -371,7 +377,7 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
                     }
                 }
 
-                Vector3i pointsPosition = YarnVoxel::GetPointNumberFromPosition(newPos);
+                Vector3i pointsPosition = yarnvoxel_singleton->GetPointNumberFromPosition(newPos);
                 int desiredCubeConfig = FindCubeConfiguration(pointsPosition.x,pointsPosition.y,pointsPosition.z,currentIslandChunk, false);
                 if (desiredCubeConfig == 0 || desiredCubeConfig == 255) continue;
                 auto slopeAverage = static_cast<float>(YarnVoxelData::AverageSlopeTable[desiredCubeConfig]);
@@ -395,7 +401,7 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
                     if (!used_chunks.has(underChunkNumber))
                         continue;
 
-                    auto underPoint = YarnVoxel::GetPointNumberFromPosition(under_point);
+                    auto underPoint = yarnvoxel_singleton->GetPointNumberFromPosition(under_point);
                     auto under_chunk = yarnvoxel_singleton->get_chunk(underChunkNumber);
                     under_chunk->SetPointSurrounding(underPoint, 1);
                 }
@@ -409,13 +415,13 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
             int roundedHeight = YarnVoxel::FastFloor(map[x][z]);
             for (int y = roundedHeight -2; y >= water_level; y--) {
                 newPos.y = y;
-                if (Vector3i chunkNumber = YarnVoxel::GetChunkNumberFromPosition(newPos); (previousChunkNumberCached != chunkNumber || !hasIslandChunk)) {
+                if (Vector3i chunkNumber = yarnvoxel_singleton->GetChunkNumberFromPosition(newPos); (previousChunkNumberCached != chunkNumber || !hasIslandChunk)) {
                     currentIslandChunk = yarnvoxel_singleton->get_chunk(chunkNumber);
                     previousChunkNumberCached = chunkNumber;
                    // IslandManager.SetDirtyChunk(chunkNumber);
                 }
                 if (currentIslandChunk != nullptr) {
-                    auto pointsPosition = YarnVoxel::GetPointNumberFromPosition(newPos);
+                    auto pointsPosition = yarnvoxel_singleton->GetPointNumberFromPosition(newPos);
                     auto yvpoint = currentIslandChunk->points[pointsPosition.x][pointsPosition.y][pointsPosition.z];
                     if (yvpoint.floatValue > ZERO_SHORT) continue;
                     Vector3i amountTypeSurrounding = FindBiggestSurroundingIncidence(pointsPosition, currentIslandChunk, false);
@@ -432,9 +438,14 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
     }
 }
 
-int IslandGenerator::FindCubeConfiguration(int x, int y, int z, YVoxelChunk* ic,bool do_debug) {
+int IslandGenerator::FindCubeConfiguration(int x, int y, int z, YVoxelChunk* ic, bool do_debug) {
     int corner_index = 0;
     int configurationIndex = 0;
+        
+    ERR_FAIL_COND_V(YarnVoxel::yarnvoxel_instances.is_empty(), 0);
+    ERR_FAIL_COND_V_MSG(ic == nullptr, 0, "Attempting to find cube configuration with null YVoxelChunk");
+
+    auto yarnvoxel_singleton = Object::cast_to<YarnVoxel>(ObjectDB::get_instance(YarnVoxel::yarnvoxel_instances[0]));
 
     for (const Vector3i corner : YarnVoxelData::CornerTable) {
         const int desired_x = x+corner.x;
@@ -451,10 +462,10 @@ int IslandGenerator::FindCubeConfiguration(int x, int y, int z, YVoxelChunk* ic,
             corner_index = corner_index+1;
         } else {
             auto worldPosToTest = ic->get_world_pos_from_point_number({desired_x,desired_y,desired_z});
-            auto otherChunkNumber = YarnVoxel::GetChunkNumberFromPosition(worldPosToTest);
+            auto otherChunkNumber = yarnvoxel_singleton->GetChunkNumberFromPosition(worldPosToTest);
             YVoxelChunk* tryChunk = nullptr;
-            if(YarnVoxel::try_get_chunk(otherChunkNumber, tryChunk)) {
-                const auto otherDesiredPoint = YarnVoxel::GetPointNumberFromPosition(worldPosToTest);
+            if(yarnvoxel_singleton->try_get_chunk(otherChunkNumber, tryChunk) && tryChunk != nullptr) {
+                const auto otherDesiredPoint = yarnvoxel_singleton->GetPointNumberFromPosition(worldPosToTest);
                 const auto point_found = &(tryChunk->points[otherDesiredPoint.x][otherDesiredPoint.y][otherDesiredPoint.z]);
                 if(do_debug) {
                     print_line("Found test point on other chunk ",otherDesiredPoint,", point found ",point_found->floatValue);
@@ -480,6 +491,11 @@ int IslandGenerator::FindCubeConfiguration(int x, int y, int z, YVoxelChunk* ic,
 }
 
 Vector3i IslandGenerator::FindBiggestSurroundingIncidence(Vector3i pointNumber, YVoxelChunk* ic, bool calculateAirDirection) {
+            
+    ERR_FAIL_COND_V(YarnVoxel::yarnvoxel_instances.is_empty(), Vector3i(0,0,0));
+
+        auto yarnvoxel_singleton = Object::cast_to<YarnVoxel>(ObjectDB::get_instance(YarnVoxel::yarnvoxel_instances[0]));
+
         uint8_t return_block;
         int stoneCount=0, sandCount=0, grassCount=0, dirtCount=0;
         int airSurroundingCount = 0;
@@ -493,25 +509,25 @@ Vector3i IslandGenerator::FindBiggestSurroundingIncidence(Vector3i pointNumber, 
                 print_line("checking ",pointNumber," point pos to check ",pointPos," direction ",surroundingVectorDir," chunk number ",ic->chunk_number);
             }
             const YarnVoxelData::YVPointValue* foundInfo = nullptr;
-            if (YarnVoxel::IsPositionValid(pointPos)) {
+            if (yarnvoxel_singleton->IsPositionValid(pointPos)) {
                 foundInfo = &ic->points[pointPos.x][pointPos.y][pointPos.z];
                 if( calculateAirDirection)
                     print_line("valid pos ",pointPos," found info byte",foundInfo->byteValue," found info float ",foundInfo->floatValue);
             } else {
                 const auto desired_pos_other = ic->get_world_pos_from_point_number(pointPos);
-                auto other_chunk_number = YarnVoxel::GetChunkNumberFromPosition(desired_pos_other);
+                auto other_chunk_number = yarnvoxel_singleton->GetChunkNumberFromPosition(desired_pos_other);
                 if( calculateAirDirection)
                     print_line("invalid pos ",pointPos," other chunk ",other_chunk_number);
                 if ((other_cached_chunk != nullptr && other_cached_chunk->chunk_number == other_chunk_number)) {
-                    if (const auto other_point_pos = YarnVoxel::GetPointNumberFromPosition(desired_pos_other); YarnVoxel::IsPositionValid(other_point_pos)) {
+                    if (const auto other_point_pos = yarnvoxel_singleton->GetPointNumberFromPosition(desired_pos_other); yarnvoxel_singleton->IsPositionValid(other_point_pos)) {
                         foundInfo = &(other_cached_chunk->points[other_point_pos.x][other_point_pos.y][other_point_pos.z]);
                         if( calculateAirDirection)
                             print_line("found in other chunk cached ",other_point_pos," found info byte",foundInfo->byteValue," found info float ",foundInfo->floatValue);
                     } else {
                         continue;
                     }
-                } else if((YarnVoxel::try_get_chunk(other_chunk_number, other_cached_chunk) && other_cached_chunk != nullptr)) {
-                    if (const auto other_point_pos = YarnVoxel::GetPointNumberFromPosition(desired_pos_other); YarnVoxel::IsPositionValid(other_point_pos)) {
+                } else if((yarnvoxel_singleton->try_get_chunk(other_chunk_number, other_cached_chunk) && other_cached_chunk != nullptr)) {
+                    if (const auto other_point_pos = yarnvoxel_singleton->GetPointNumberFromPosition(desired_pos_other); yarnvoxel_singleton->IsPositionValid(other_point_pos)) {
                         foundInfo = &(other_cached_chunk->points[other_point_pos.x][other_point_pos.y][other_point_pos.z]);
                         if( calculateAirDirection)
                             print_line("found in other chunk noncached ",other_point_pos," found info byte",foundInfo->byteValue," found info float ",foundInfo->floatValue);
@@ -653,12 +669,16 @@ IslandGenerator::~IslandGenerator() {
 }
 
 void IslandGenerator::generate_chunk(Vector3i chunk_number, bool force_cave, bool smooth_points) {
+        
+    ERR_FAIL_COND(YarnVoxel::yarnvoxel_instances.is_empty());
+
+    auto yarnvoxel_singleton = Object::cast_to<YarnVoxel>(ObjectDB::get_instance(YarnVoxel::yarnvoxel_instances[0]));
+
     fnl->set_fractal_type(FastNoiseLite::FRACTAL_FBM);
     fnl->set_frequency(cave_smoothness);
     fnl->set_fractal_lacunarity(cave_lacunarity);
     fnl->set_seed(seed);
 
-    auto yarnvoxel_singleton = YarnVoxel::get_singleton();
     YVoxelChunk* chunk = yarnvoxel_singleton->get_chunk(chunk_number);
     if (!chunk) return;
 

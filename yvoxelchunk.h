@@ -234,8 +234,13 @@ public:
 
     float get_density_at_point(Vector3i point_pos);
 
+    void _on_tree_exiting();
+    
     YVoxelChunk();
-    ~YVoxelChunk();
+
+    // Add method to get parent YarnVoxel
+    YarnVoxel* get_parent_yarnvoxel() const;
+    YarnVoxel* parent_yarnvoxel;
 };
 
 #endif //YVOXELCHUNK_H
