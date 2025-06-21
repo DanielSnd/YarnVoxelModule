@@ -27,6 +27,7 @@ class YarnVoxel : public Node3D {
 	float terrainSurface;
 	int ChunkWidth;
 	int ChunkHeight;
+	float voxel_resolution; // New property for voxel resolution (1.0 = 1 unit per voxel, 0.5 = 0.5 units per voxel, etc.)
 	Vector3i debug_pos;
 	float DivideForChunkWidth;
 	float DivideForChunkHeight;
@@ -196,6 +197,14 @@ public:
 
 	float get_simplification_distance() const { return simplification_distance; }
 	void set_simplification_distance(float distance) { simplification_distance = distance; }
+
+	// Resolution getters and setters
+	float get_voxel_resolution() const { return voxel_resolution; }
+	void set_voxel_resolution(float resolution) { voxel_resolution = resolution; }
+	
+	// Helper methods for coordinate conversion with resolution
+	Vector3 voxel_to_world_position(Vector3i voxel_pos) const;
+	Vector3i world_to_voxel_position(Vector3 world_pos) const;
 };
 
 VARIANT_ENUM_CAST(YarnVoxel::BlockType);

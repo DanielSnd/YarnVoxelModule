@@ -680,10 +680,10 @@ void YVoxelChunk::populate_terrain(float height) {
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
             for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
-                // Calculate world position by incorporating chunk number
-                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH + x) / 16.0f * 1.5f + 0.001f;
-                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT + y) / 16.0f * 1.5f + 0.001f;
-                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH + z) / 16.0f * 1.5f + 0.001f;
+                // Calculate world position by incorporating chunk number and resolution
+                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH * parent_yarnvoxel->get_voxel_resolution() + x * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
+                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT * parent_yarnvoxel->get_voxel_resolution() + y * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
+                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH * parent_yarnvoxel->get_voxel_resolution() + z * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
 
                 // Get terrain height using world position for continuous noise
                 const auto thisHeight = YarnVoxel::static_perlin_noise_3d(worldX, worldY, worldZ);
@@ -712,10 +712,10 @@ void YVoxelChunk::populate_chunk_3d() {
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
             for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
-                // Calculate world position by incorporating chunk number
-                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH + x) / 16.0f * 1.5f + 0.001f;
-                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT + y) / 16.0f * 1.5f + 0.001f;
-                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH + z) / 16.0f * 1.5f + 0.001f;
+                // Calculate world position by incorporating chunk number and resolution
+                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH * parent_yarnvoxel->get_voxel_resolution() + x * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
+                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT * parent_yarnvoxel->get_voxel_resolution() + y * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
+                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH * parent_yarnvoxel->get_voxel_resolution() + z * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
 
                 // Get terrain height using world position for continuous noise
                 const auto thisHeight = YarnVoxel::static_perlin_noise_3d(worldX, worldY, worldZ);
@@ -1294,7 +1294,9 @@ void YVoxelChunk::set_chunk_number(Vector3i v) {
 }
 
 Vector3 YVoxelChunk::get_world_pos_from_point_number(Vector3i pointNumber) const {
-    return {bottom_corner_world_pos.x + pointNumber.x, bottom_corner_world_pos.y + pointNumber.y, bottom_corner_world_pos.z + pointNumber.z};
+    return {bottom_corner_world_pos.x + pointNumber.x * parent_yarnvoxel->get_voxel_resolution(), 
+            bottom_corner_world_pos.y + pointNumber.y * parent_yarnvoxel->get_voxel_resolution(), 
+            bottom_corner_world_pos.z + pointNumber.z * parent_yarnvoxel->get_voxel_resolution()};
 }
 
 void YVoxelChunk::initialize(Vector3i initialize_position) {

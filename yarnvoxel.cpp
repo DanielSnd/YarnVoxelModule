@@ -33,24 +33,30 @@ bool YarnVoxel::IsPositionValid(Vector3i pos) {
 // ReSharper disable once CppMemberFunctionMayBeStatic
 Vector3 YarnVoxel::CalculateChunkCenterPosition(Vector3i chunkPosition) {
 	const auto bottom_corner = GetBottomCornerForChunkInNumber(chunkPosition);
-	return bottom_corner + (right * (0.5 * YARNVOXEL_CHUNK_WIDTH)) + (forward * (0.5 * YARNVOXEL_CHUNK_WIDTH)) + (up * (0.5 * YARNVOXEL_CHUNK_HEIGHT));
+	return bottom_corner + (right * (0.5 * YARNVOXEL_CHUNK_WIDTH * voxel_resolution)) + 
+	       (forward * (0.5 * YARNVOXEL_CHUNK_WIDTH * voxel_resolution)) + 
+	       (up * (0.5 * YARNVOXEL_CHUNK_HEIGHT * voxel_resolution));
 }
 
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
 Vector3i YarnVoxel::FindChunkNumberFromPosition(const Vector3 pos) {
-	return {FastFloor(pos.x / YARNVOXEL_CHUNK_WIDTH), FastFloor(pos.y / YARNVOXEL_CHUNK_HEIGHT), FastFloor(pos.z / YARNVOXEL_CHUNK_WIDTH)};
+	return {FastFloor(pos.x / (YARNVOXEL_CHUNK_WIDTH * voxel_resolution)), 
+	        FastFloor(pos.y / (YARNVOXEL_CHUNK_HEIGHT * voxel_resolution)), 
+	        FastFloor(pos.z / (YARNVOXEL_CHUNK_WIDTH * voxel_resolution))};
 }
 
 Vector3i YarnVoxel::GetChunkNumberFromPosition(const Vector3 pos) {
-	return {FastFloor(pos.x / YARNVOXEL_CHUNK_WIDTH), FastFloor(pos.y / YARNVOXEL_CHUNK_HEIGHT), FastFloor(pos.z / YARNVOXEL_CHUNK_WIDTH)};
+	return {FastFloor(pos.x / (YARNVOXEL_CHUNK_WIDTH * voxel_resolution)), 
+	        FastFloor(pos.y / (YARNVOXEL_CHUNK_HEIGHT * voxel_resolution)), 
+	        FastFloor(pos.z / (YARNVOXEL_CHUNK_WIDTH * voxel_resolution))};
 }
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
 Vector3i YarnVoxel::GetPointNumberFromPosition(Vector3 pos) {
-	Vector3i PointNumber = Vector3i(static_cast<int>(Math::round(Math::fmod(pos.x,YARNVOXEL_CHUNK_WIDTH))),
-	static_cast<int>(Math::round(Math::fmod(pos.y, YARNVOXEL_CHUNK_HEIGHT))),
-	static_cast<int>(Math::round(Math::fmod(pos.z, YARNVOXEL_CHUNK_WIDTH))));
+	Vector3i PointNumber = Vector3i(static_cast<int>(Math::round(Math::fmod(pos.x, YARNVOXEL_CHUNK_WIDTH * voxel_resolution) / voxel_resolution)),
+	static_cast<int>(Math::round(Math::fmod(pos.y, YARNVOXEL_CHUNK_HEIGHT * voxel_resolution) / voxel_resolution)),
+	static_cast<int>(Math::round(Math::fmod(pos.z, YARNVOXEL_CHUNK_WIDTH * voxel_resolution) / voxel_resolution)));
 
 	if (PointNumber.x < 0) PointNumber.x = YARNVOXEL_CHUNK_WIDTH - (-PointNumber.x);
 	if (PointNumber.y < 0) PointNumber.y = YARNVOXEL_CHUNK_HEIGHT - (-PointNumber.y);
@@ -61,9 +67,9 @@ Vector3i YarnVoxel::GetPointNumberFromPosition(Vector3 pos) {
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
 Vector3i YarnVoxel::FindPointNumberFromPosition(Vector3 pos) {
-	Vector3i PointNumber = Vector3i(static_cast<int>(Math::round(Math::fmod(pos.x,YARNVOXEL_CHUNK_WIDTH))),
-	static_cast<int>(Math::round(Math::fmod(pos.y, YARNVOXEL_CHUNK_HEIGHT))),
-	static_cast<int>(Math::round(Math::fmod(pos.z, YARNVOXEL_CHUNK_WIDTH))));
+	Vector3i PointNumber = Vector3i(static_cast<int>(Math::round(Math::fmod(pos.x, YARNVOXEL_CHUNK_WIDTH * voxel_resolution) / voxel_resolution)),
+	static_cast<int>(Math::round(Math::fmod(pos.y, YARNVOXEL_CHUNK_HEIGHT * voxel_resolution) / voxel_resolution)),
+	static_cast<int>(Math::round(Math::fmod(pos.z, YARNVOXEL_CHUNK_WIDTH * voxel_resolution) / voxel_resolution)));
 
 	if (PointNumber.x < 0) PointNumber.x = YARNVOXEL_CHUNK_WIDTH - (-PointNumber.x);
 	if (PointNumber.y < 0) PointNumber.y = YARNVOXEL_CHUNK_HEIGHT - (-PointNumber.y);
@@ -165,8 +171,9 @@ Vector3 YarnVoxel::CalculateCellCenterPosition(Vector2i gridPosition) {
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
 Vector3 YarnVoxel::GetBottomCornerForChunkInNumber(Vector3i ChunkNumber) {
-	return {static_cast<real_t>(ChunkNumber.x) * YARNVOXEL_CHUNK_WIDTH, static_cast<real_t>(ChunkNumber.y) * YARNVOXEL_CHUNK_HEIGHT,
-	        static_cast<real_t>(ChunkNumber.z) * YARNVOXEL_CHUNK_WIDTH};
+	return {static_cast<real_t>(ChunkNumber.x) * YARNVOXEL_CHUNK_WIDTH * voxel_resolution, 
+	        static_cast<real_t>(ChunkNumber.y) * YARNVOXEL_CHUNK_HEIGHT * voxel_resolution,
+	        static_cast<real_t>(ChunkNumber.z) * YARNVOXEL_CHUNK_WIDTH * voxel_resolution};
 }
 
 bool YarnVoxel::try_get_chunk(Vector3i chunkPosition, YVoxelChunk*& chunk_pointer) {
@@ -322,6 +329,12 @@ void YarnVoxel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_smoothing", "val"), &YarnVoxel::set_smoothing);
 	ClassDB::bind_method(D_METHOD("get_smoothing"), &YarnVoxel::get_smoothing);
 	
+	ClassDB::bind_method(D_METHOD("get_voxel_resolution"), &YarnVoxel::get_voxel_resolution);
+	ClassDB::bind_method(D_METHOD("set_voxel_resolution", "resolution"), &YarnVoxel::set_voxel_resolution);
+	
+	ClassDB::bind_method(D_METHOD("voxel_to_world_position", "voxel_pos"), &YarnVoxel::voxel_to_world_position);
+	ClassDB::bind_method(D_METHOD("world_to_voxel_position", "world_pos"), &YarnVoxel::world_to_voxel_position);
+	
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "material", PROPERTY_HINT_RESOURCE_TYPE, "BaseMaterial3D,ShaderMaterial"), "set_material", "get_material");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "generate_grass"), "set_generate_grass", "get_generate_grass");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "grass_mesh", PROPERTY_HINT_RESOURCE_TYPE, "Mesh"), "set_grass_mesh", "get_grass_mesh");
@@ -329,6 +342,7 @@ void YarnVoxel::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "smoothing"), "set_smoothing", "get_smoothing");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "calculate_custom_normals"), "set_calculate_custom_normals", "get_calculate_custom_normals");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "serialize_when_generating"), "set_serialize_when_generating", "get_serialize_when_generating");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "voxel_resolution", PROPERTY_HINT_RANGE, "0.1,2.0,0.1"), "set_voxel_resolution", "get_voxel_resolution");
 	
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "debug_pos"), "set_debug_pos", "get_debug_pos");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "cell_size"), "set_cell_size", "get_cell_size");
@@ -765,6 +779,16 @@ int YarnVoxel::get_debugging_config() const {
 	return debugging_config;
 }
 
+Vector3 YarnVoxel::voxel_to_world_position(Vector3i voxel_pos) const {
+	return Vector3(voxel_pos.x * voxel_resolution, voxel_pos.y * voxel_resolution, voxel_pos.z * voxel_resolution);
+}
+
+Vector3i YarnVoxel::world_to_voxel_position(Vector3 world_pos) const {
+	return Vector3i(FastFloor(world_pos.x / voxel_resolution), 
+	                FastFloor(world_pos.y / voxel_resolution), 
+	                FastFloor(world_pos.z / voxel_resolution));
+}
+
 YarnVoxel::YarnVoxel() {
 	// Initialize member variables
 	count = 0;
@@ -772,6 +796,7 @@ YarnVoxel::YarnVoxel() {
 	terrainSurface = 0.0f;
 	ChunkWidth = 16;
 	ChunkHeight = 16;
+	voxel_resolution = 1.0f; // Default to 1:1 mapping
 	debug_pos = Vector3i(0, 0, 0);
 	DivideForChunkWidth = 1.0f / ChunkWidth;
 	DivideForChunkHeight = 1.0f / ChunkHeight;
