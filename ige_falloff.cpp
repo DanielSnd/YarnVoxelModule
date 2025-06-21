@@ -164,6 +164,6 @@ IGE_Falloff::IGE_Falloff() = default;
 
 IGE_Falloff::~IGE_Falloff() {
     if (falloff_curve.is_valid()) {
-        falloff_curve.unref();
+        falloff_curve = nullptr;
     }
 }

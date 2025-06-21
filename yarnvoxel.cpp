@@ -199,29 +199,11 @@ YVoxelChunk* YarnVoxel::get_chunk(Vector3i chunkPosition) {
 		print_line(vformat("[YarnVoxel::get_chunk] Creating chunk at %s | YARNVOXEL_CHUNK_WIDTH: %d, YARNVOXEL_CHUNK_HEIGHT: %d", chunkPosition, YARNVOXEL_CHUNK_WIDTH, YARNVOXEL_CHUNK_HEIGHT));
 		Vector3 bottom_corner = GetBottomCornerForChunkInNumber(chunkPosition);
 		chunk->set_bottom_corner_world_pos(bottom_corner);
-		chunk->set_position(bottom_corner);
+		chunk->set_global_position(bottom_corner);
 		print_line(vformat("[YarnVoxel::get_chunk] Bottom corner world pos for chunk %s: %s", chunkPosition, bottom_corner));
 		return chunk;
 	}
 	return Object::cast_to<YVoxelChunk>(ObjectDB::get_instance(yvchunks[chunkPosition]));
-}
-
-
-void YarnVoxel::add(int p_value) {
-	count += p_value;
-}
-
-void YarnVoxel::multiply(int p_value) {
-	count *= p_value;
-	//print_line(Engine::get_singleton()->is_editor_hint());
-}
-
-void YarnVoxel::reset() {
-	count = 0;
-}
-
-int YarnVoxel::get_total() const {
-	return count;
 }
 
 void YarnVoxel::set_material(const Ref<Material> &p_material) {
@@ -305,12 +287,9 @@ String YarnVoxel::dirty_chunk_queue_info() {
 // ClassDB::bind_method(D_METHOD("set_fractal_octaves", "octave_count"), &FastNoiseLite::set_fractal_octaves);
 // ClassDB::bind_method(D_METHOD("get_fractal_octaves"), &FastNoiseLite::get_fractal_octaves);
 void YarnVoxel::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("add", "value"), &YarnVoxel::add);
-	ClassDB::bind_method(D_METHOD("multiply", "value"), &YarnVoxel::multiply);
-	ClassDB::bind_method(D_METHOD("reset"), &YarnVoxel::reset);
-	ClassDB::bind_method(D_METHOD("get_total"), &YarnVoxel::get_total);
 	ClassDB::bind_method(D_METHOD("set_material", "material"), &YarnVoxel::set_material);
 	ClassDB::bind_method(D_METHOD("get_material"), &YarnVoxel::get_material);
+	
 	ClassDB::bind_method(D_METHOD("changeFloatAtPosition", "position", "newFloat", "newBlockType", "health"), &YarnVoxel::changeFloatAtPosition, DEFVAL(255));
 	ClassDB::bind_method(D_METHOD("modify_voxel_area", "pos", "amount", "brushSize", "block_type"), &YarnVoxel::modify_voxel_area, DEFVAL(0));
 	ClassDB::bind_method(D_METHOD("damage_voxel_area", "pos", "amount", "brushSize"), &YarnVoxel::damage_voxel_area);
@@ -318,6 +297,7 @@ void YarnVoxel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("find_closest_solid_point_to", "pos", "search_radius"), &YarnVoxel::find_closest_solid_point_to);
 	ClassDB::bind_method(D_METHOD("find_air_position_with_clearance", "center_pos", "radius", "required_clearance"), &YarnVoxel::find_air_position_with_clearance);
 	ClassDB::bind_method(D_METHOD("try_get_chunk", "chunk_number"), &YarnVoxel::get_chunk_from_gdscript);
+	ClassDB::bind_method(D_METHOD("get_or_create_chunk", "chunk_number"), &YarnVoxel::get_chunk);
 	ClassDB::bind_method(D_METHOD("set_dirty_chunk", "chunkNumber"), &YarnVoxel::set_dirty_chunk);
 	ClassDB::bind_static_method("YarnVoxel",D_METHOD("perlin_noise", "x", "y"), &YarnVoxel::static_perlin_noise);
 	ClassDB::bind_static_method("YarnVoxel",D_METHOD("perlin_noise_3d", "x", "y", "z"), &YarnVoxel::static_perlin_noise_3d);
@@ -329,7 +309,25 @@ void YarnVoxel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_debugging_config", "val"), &YarnVoxel::set_debugging_config);
 	ClassDB::bind_method(D_METHOD("get_simplification_distance"), &YarnVoxel::get_simplification_distance);
 	ClassDB::bind_method(D_METHOD("set_simplification_distance", "distance"), &YarnVoxel::set_simplification_distance);
-
+	ClassDB::bind_method(D_METHOD("get_generate_grass"), &YarnVoxel::get_generate_grass);
+	ClassDB::bind_method(D_METHOD("set_generate_grass", "val"), &YarnVoxel::set_generate_grass);
+	ClassDB::bind_method(D_METHOD("get_grass_mesh"), &YarnVoxel::get_grass_mesh);
+	ClassDB::bind_method(D_METHOD("set_grass_mesh", "val"), &YarnVoxel::set_grass_mesh);
+	ClassDB::bind_method(D_METHOD("get_grass_material"), &YarnVoxel::get_grass_material);
+	ClassDB::bind_method(D_METHOD("set_grass_material", "val"), &YarnVoxel::set_grass_material);
+	ClassDB::bind_method(D_METHOD("set_calculate_custom_normals", "val"), &YarnVoxel::set_calculate_custom_normals);
+	ClassDB::bind_method(D_METHOD("get_calculate_custom_normals"), &YarnVoxel::get_calculate_custom_normals);
+	ClassDB::bind_method(D_METHOD("get_serialize_when_generating"), &YarnVoxel::get_serialize_when_generating);
+	ClassDB::bind_method(D_METHOD("set_serialize_when_generating", "val"), &YarnVoxel::set_serialize_when_generating);
+	
+	
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "material", PROPERTY_HINT_RESOURCE_TYPE, "BaseMaterial3D,ShaderMaterial"), "set_material", "get_material");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "generate_grass"), "set_generate_grass", "get_generate_grass");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "grass_mesh", PROPERTY_HINT_RESOURCE_TYPE, "Mesh"), "set_grass_mesh", "get_grass_mesh");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "grass_material", PROPERTY_HINT_RESOURCE_TYPE, "BaseMaterial3D,ShaderMaterial"), "set_grass_material", "get_grass_material");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "calculate_custom_normals"), "set_calculate_custom_normals", "get_calculate_custom_normals");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "serialize_when_generating"), "set_serialize_when_generating", "get_serialize_when_generating");
+	
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "debug_pos"), "set_debug_pos", "get_debug_pos");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "cell_size"), "set_cell_size", "get_cell_size");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "debugging_config"), "set_debugging_config", "get_debugging_config");
@@ -778,7 +776,7 @@ YarnVoxel::YarnVoxel() {
 	BaseTerrainHeight = 0.0f;
 	TerrainHeightRange = 32.0f;
 	calculate_custom_normals = false;
-	serialize_when_generating = false;
+	serialize_when_generating = true;
 	simplification_distance = 0.0f;
 	is_generating = false;
 	is_debugging_chunk = false;

@@ -679,8 +679,13 @@ void YVoxelChunk::populate_terrain(float height) {
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
             for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
-                // Get a terrain height using regular old Perlin noise.
-                const auto thisHeight = YarnVoxel::static_perlin_noise(static_cast<float>(x) / 16 * 1.5 + 0.001, static_cast<float>(z) / 16 * 1.5f + 0.001f);
+                // Calculate world position by incorporating chunk number
+                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH + x) / 16.0f * 1.5f + 0.001f;
+                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT + y) / 16.0f * 1.5f + 0.001f;
+                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH + z) / 16.0f * 1.5f + 0.001f;
+
+                // Get terrain height using world position for continuous noise
+                const auto thisHeight = YarnVoxel::static_perlin_noise_3d(worldX, worldY, worldZ);
 
                 // Set the value of this point in the terrainMap.
                 points[x][y][z] = YarnVoxelData::YVPointValue(1,floatToInt16(static_cast<float>(y) - thisHeight));
@@ -706,11 +711,16 @@ void YVoxelChunk::populate_chunk_3d() {
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
             for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
-                // Get a terrain height using regular old Perlin noise.
-                const auto thisHeight = YarnVoxel::static_perlin_noise_3d(static_cast<float>(x) / 16 * 1.5 + 0.001, static_cast<float>(y) / 16 * 1.5f + 0.001f, static_cast<float>(z) / 16 * 1.5f + 0.001f);
+                // Calculate world position by incorporating chunk number
+                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH + x) / 16.0f * 1.5f + 0.001f;
+                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT + y) / 16.0f * 1.5f + 0.001f;
+                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH + z) / 16.0f * 1.5f + 0.001f;
 
-                // Set the value of this point in the terrainMap.
-                points[x][y][z] = YarnVoxelData::YVPointValue(1,floatToInt16(thisHeight));
+                // Get terrain height using world position for continuous noise
+                const auto thisHeight = YarnVoxel::static_perlin_noise_3d(worldX, worldY, worldZ);
+
+                // Set the value of this point in the terrainMap
+                points[x][y][z] = YarnVoxelData::YVPointValue(1, floatToInt16(thisHeight));
             }
 
     constexpr float underSlopeForStone = -60, aboveSlopeForStone = 60;
@@ -1022,6 +1032,16 @@ void YVoxelChunk::do_ready() {
     if (has_done_ready) {
         return;
     }
+    if (pending_set_chunk_number_on_parent) {
+        if (parent_yarnvoxel == nullptr) {
+            parent_yarnvoxel = get_parent_yarnvoxel();
+        }
+        if (parent_yarnvoxel != nullptr) {
+            has_registered_chunk_number = true;
+            parent_yarnvoxel->yvchunks[chunk_number] = get_instance_id();
+            pending_set_chunk_number_on_parent = false;
+        }
+    }
     if(!data.is_empty() && data.size() > 10) {
         //print_line("Doing ready ",chunk_number," yvchunks registered ",YarnVoxel::yvchunks.size());
         if(!has_registered_chunk_number){
@@ -1240,18 +1260,29 @@ void YVoxelChunk::_bind_methods() {
 
 void YVoxelChunk::set_chunk_number(Vector3i v) {
     //print_line(get_name(),"Set chunk number (current ",chunk_number," new ",v,") has registered? ",has_registered_chunk_number," has yarn voxel singleton? ",YarnVoxel::get_singleton() != nullptr);
-        if (chunk_number != v || !has_registered_chunk_number) {
-            YVoxelChunk* find_chunk = nullptr;
-            if(parent_yarnvoxel->try_get_chunk(chunk_number,find_chunk) && find_chunk == this) {
-                parent_yarnvoxel->yvchunks.erase(chunk_number);
+    
+        if (parent_yarnvoxel == nullptr) {
+            parent_yarnvoxel = get_parent_yarnvoxel();
+        }
+        if (parent_yarnvoxel != nullptr) {
+            if (chunk_number != v || !has_registered_chunk_number) {
+                if (!has_done_ready) {
+                    pending_set_chunk_number_on_parent = true;
+                    chunk_number = v;
+                    return;
+                }
+                YVoxelChunk* find_chunk = nullptr;
+                if(has_registered_chunk_number && parent_yarnvoxel != nullptr && parent_yarnvoxel->try_get_chunk(chunk_number, find_chunk) && find_chunk == this) {
+                    parent_yarnvoxel->yvchunks.erase(chunk_number);
+                }
+                parent_yarnvoxel->yvchunks[v] = get_instance_id();
+                has_registered_chunk_number=true;
+                if(is_inside_tree()) {
+                    set_bottom_corner_world_pos(parent_yarnvoxel->GetBottomCornerForChunkInNumber(chunk_number));
+                    set_global_position(bottom_corner_world_pos);
+                }
+                chunk_number = v;
             }
-            parent_yarnvoxel->yvchunks[v] = get_instance_id();
-            has_registered_chunk_number=true;
-            if(is_inside_tree()) {
-                set_bottom_corner_world_pos(parent_yarnvoxel->GetBottomCornerForChunkInNumber(chunk_number));
-                set_global_position(bottom_corner_world_pos);
-            }
-            chunk_number = v;
         }
 }
 
@@ -1263,7 +1294,9 @@ void YVoxelChunk::initialize(Vector3i initialize_position) {
     chunk_number = initialize_position;
     has_registered_chunk_number = true;
     ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
-    parent_yarnvoxel->set_dirty_chunk(chunk_number);
+    if (parent_yarnvoxel != nullptr) {
+        parent_yarnvoxel->set_dirty_chunk(chunk_number);
+    }
 }
 
 YVoxelChunk::YVoxelChunk() {
@@ -1274,7 +1307,9 @@ YVoxelChunk::YVoxelChunk() {
             }
         }
     }
+    
     chunk_number = Vector3i{-99999,-99999,-99999};
+
     completed_generation = StaticCString::create("completed_generation");
 }
 

@@ -77,7 +77,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    class YarnVoxelEditorPlugin : public EditorPlugin  {
+class YarnVoxelEditorPlugin : public EditorPlugin  {
     GDCLASS(YarnVoxelEditorPlugin, EditorPlugin)
 
     private:

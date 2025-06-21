@@ -115,12 +115,6 @@ public:
 	int get_debug_pos() const;
 	void set_debug_pos(Vector3i val);
 
-	//OLD STUFF FROM TUTORIAL:
-	void add(int p_value);
-	void multiply(int p_value);
-	void reset();
-	int get_total() const;
-
 	void set_material(const Ref<Material> &p_material);
 
 	Ref<Material> get_material();

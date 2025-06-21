@@ -572,8 +572,8 @@ YVoxelChunkEditorPlugin::~YVoxelChunkEditorPlugin() {
 	if(singleton != nullptr && singleton == this) {
 		singleton = nullptr;
 	}
-	if (inspector_plugin != nullptr && inspector_plugin.is_valid()) {
-		inspector_plugin.unref();
+	if (inspector_plugin.is_valid()) {
+		inspector_plugin = nullptr;
 	}
 }
 

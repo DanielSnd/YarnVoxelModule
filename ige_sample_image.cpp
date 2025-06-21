@@ -40,5 +40,7 @@ IGE_SampleImage::IGE_SampleImage() {
 }
 
 IGE_SampleImage::~IGE_SampleImage() {
-    if (image_to_use.is_valid()) image_to_use.unref();
+    if (image_to_use.is_valid()) {
+        image_to_use = nullptr;
+    }
 }

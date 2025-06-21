@@ -37,7 +37,7 @@ IGE_FastNoise::IGE_FastNoise() {
 
 IGE_FastNoise::~IGE_FastNoise() {
     if (noise.is_valid()) {
-        noise.unref();
+        noise = nullptr;
     }
 }
 

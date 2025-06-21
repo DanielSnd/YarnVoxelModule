@@ -70,6 +70,7 @@ public:
 
     Vector3i chunk_number;
     Vector3i get_chunk_number() {return chunk_number;}
+    bool pending_set_chunk_number_on_parent = false;
     void deferred_set_dirty();
     void set_chunk_number(Vector3i v);
 
@@ -235,7 +236,7 @@ public:
     float get_density_at_point(Vector3i point_pos);
 
     void _on_tree_exiting();
-    
+
     YVoxelChunk();
 
     // Add method to get parent YarnVoxel

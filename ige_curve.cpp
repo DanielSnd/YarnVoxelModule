@@ -20,7 +20,7 @@ IGE_Curve::IGE_Curve() {
 
 IGE_Curve::~IGE_Curve() {
     if (curve.is_valid()) {
-        curve.unref();
+        curve = nullptr;
     }
 }
 

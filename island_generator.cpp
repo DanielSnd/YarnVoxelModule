@@ -662,7 +662,7 @@ IslandGenerator::IslandGenerator() {
 
 IslandGenerator::~IslandGenerator() {
     if(fnl.is_valid()) {
-        fnl.unref();
+        fnl = nullptr;
     }
     //DESTRUCTOR
     gen_effects.clear();
