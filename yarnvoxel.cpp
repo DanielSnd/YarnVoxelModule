@@ -319,12 +319,14 @@ void YarnVoxel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_calculate_custom_normals"), &YarnVoxel::get_calculate_custom_normals);
 	ClassDB::bind_method(D_METHOD("get_serialize_when_generating"), &YarnVoxel::get_serialize_when_generating);
 	ClassDB::bind_method(D_METHOD("set_serialize_when_generating", "val"), &YarnVoxel::set_serialize_when_generating);
-	
+	ClassDB::bind_method(D_METHOD("set_smoothing", "val"), &YarnVoxel::set_smoothing);
+	ClassDB::bind_method(D_METHOD("get_smoothing"), &YarnVoxel::get_smoothing);
 	
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "material", PROPERTY_HINT_RESOURCE_TYPE, "BaseMaterial3D,ShaderMaterial"), "set_material", "get_material");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "generate_grass"), "set_generate_grass", "get_generate_grass");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "grass_mesh", PROPERTY_HINT_RESOURCE_TYPE, "Mesh"), "set_grass_mesh", "get_grass_mesh");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "grass_material", PROPERTY_HINT_RESOURCE_TYPE, "BaseMaterial3D,ShaderMaterial"), "set_grass_material", "get_grass_material");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "smoothing"), "set_smoothing", "get_smoothing");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "calculate_custom_normals"), "set_calculate_custom_normals", "get_calculate_custom_normals");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "serialize_when_generating"), "set_serialize_when_generating", "get_serialize_when_generating");
 	

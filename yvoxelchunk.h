@@ -229,7 +229,7 @@ public:
 
     void optimize_faces(float p_simplification_dist = 0.1f);
 
-    void MarchCube(Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health,uint8_t debugging_config);
+    void MarchCube(Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config, bool no_smoothing = false);
 
     int FindCubeConfiguration(int x, int y, int z);
 

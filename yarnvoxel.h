@@ -51,6 +51,10 @@ public:
 	bool get_is_generating() const {return is_generating;}
 	bool is_debugging_chunk;
 	bool is_triple_polycount;
+	bool smoothing = false;
+	void set_smoothing(bool b) {
+		smoothing = b; }
+	bool get_smoothing() {return smoothing;}
 	bool generate_grass{};
 	void set_generate_grass(bool status) {generate_grass = status;}
 	bool get_generate_grass() const {return generate_grass;}

@@ -323,6 +323,7 @@ void YVoxelChunk::generate() {
     auto start_marching_cubes = std::chrono::high_resolution_clock::now();
     constexpr uint8_t hint_is_count = 254;
     uint16_t count = 0;
+    bool smoothing = parent->get_smoothing();
     uint8_t value = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].byteValue;
     int16_t floatValue = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].floatValue;
     const bool serialize_when_generating = parent->get_serialize_when_generating();
@@ -359,7 +360,7 @@ void YVoxelChunk::generate() {
                     }
                     corner_index = corner_index+1;
                 }
-                MarchCube(Vector3i(x, y, z), GetCubeConfiguration(), relevant_byte, cube[0]->health, debugging_config);
+                MarchCube(Vector3i(x, y, z), GetCubeConfiguration(), relevant_byte, cube[0]->health, debugging_config, smoothing);
             }
         }
     }
@@ -824,7 +825,7 @@ void YVoxelChunk::clear_triangles() {
     output_pos_to_index.clear();
 }
 
-void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config) {
+void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config, bool no_smoothing) {
     bool is_triple_polycount = parent_yarnvoxel->is_triple_polycount;
     // If the configuration of this cube is 0 or 255 (completely inside the terrain or completely outside of it) we don't need to do anything.
     if (configIndex == 0 || configIndex == 255) return;
@@ -845,18 +846,24 @@ void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desired
             Vector3 vert1 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][0]];
             Vector3 vert2 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][1]];
 
-            // Get the terrain values at either end of our current edge from the cube array created above.
-            const float vert1Sample = int16ToFloat(cube[YarnVoxelData::EdgeIndexes[indice][0]]->floatValue);
-            const float vert2Sample = int16ToFloat(cube[YarnVoxelData::EdgeIndexes[indice][1]]->floatValue);
+            Vector3 vertPosition;
+            if (no_smoothing) {
+                // Without smoothing, just use the midpoint of the edge
+                vertPosition = (vert1 + vert2) * 0.5;
+            } else {
+                // Get the terrain values at either end of our current edge from the cube array created above.
+                const float vert1Sample = int16ToFloat(cube[YarnVoxelData::EdgeIndexes[indice][0]]->floatValue);
+                const float vert2Sample = int16ToFloat(cube[YarnVoxelData::EdgeIndexes[indice][1]]->floatValue);
 
-            // Calculate the difference between the terrain values.
-            float difference = vert2Sample - vert1Sample;
+                // Calculate the difference between the terrain values.
+                float difference = vert2Sample - vert1Sample;
 
-            // If the difference is 0, then the terrain passes through the middle.
-            difference = difference == 0 ? YARNVOXEL_TERRAIN_SURFACE : (YARNVOXEL_TERRAIN_SURFACE - vert1Sample) / difference;
+                // If the difference is 0, then the terrain passes through the middle.
+                difference = difference == 0 ? YARNVOXEL_TERRAIN_SURFACE : (YARNVOXEL_TERRAIN_SURFACE - vert1Sample) / difference;
 
-            // Calculate the point along the edge that passes through.
-            const Vector3 vertPosition = vert1 + ((vert2 - vert1) * difference);
+                // Calculate the point along the edge that passes through.
+                vertPosition = vert1 + ((vert2 - vert1) * difference);
+            }
             //auto vertpositionstring = vformat("%s (%s + ((%s - %s) * %s);",vertPosition,vert1,vert2,vert1,difference);
            // print_line("position block marching ",position," trianglevertindex ",currentTriangleCount," vert position ",vertpositionstring);
            // print_line("vert1 ",vert1," vert 2 ",vert2," edge indexes ", YarnVoxelData::EdgeIndexes[indice], " corner table vert1 ",YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][0]],
