@@ -382,7 +382,8 @@ void YVoxelChunk::generate() {
     indices.clear();
     colors.clear();
 
-    
+    // Clear edge vertex data for this generation
+    clear_edge_vertex_data();
 
     // Check if we should use custom normal calculation
     bool use_custom_calculation = parent->get_calculate_custom_normals();
@@ -407,6 +408,11 @@ void YVoxelChunk::generate() {
             uvs.push_back(Vector2(0, 0));
             colors.push_back(desiredColor);
             output_pos_to_index[triangle.v1] = index1;
+            
+            // Register edge vertex if it's on chunk boundary
+            if (is_vertex_on_chunk_edge(triangle.v1)) {
+                register_edge_vertex(triangle.v1, normals.size() - 1);
+            }
         } else {
             index1 = *index1_pointer;
             if (index1 < colors.size()) {
@@ -426,6 +432,11 @@ void YVoxelChunk::generate() {
             uvs.push_back(Vector2(0, 0));
             colors.push_back(desiredColor);
             output_pos_to_index[triangle.v2] = index2;
+            
+            // Register edge vertex if it's on chunk boundary
+            if (is_vertex_on_chunk_edge(triangle.v2)) {
+                register_edge_vertex(triangle.v2, normals.size() - 1);
+            }
         } else {
             index2 = *index2_pointer;
             if (index2 < colors.size()) {
@@ -446,6 +457,11 @@ void YVoxelChunk::generate() {
             uvs.push_back(Vector2(0, 0));
             colors.push_back(desiredColor);
             output_pos_to_index[triangle.v3] = index3;
+            
+            // Register edge vertex if it's on chunk boundary
+            if (is_vertex_on_chunk_edge(triangle.v3)) {
+                register_edge_vertex(triangle.v3, normals.size() - 1);
+            }
         } else {
             index3 = *index3_pointer;
             if (index3 < colors.size()) {
@@ -495,6 +511,13 @@ void YVoxelChunk::generate() {
                 normals.write[i] = normals.write[i].normalized();
             }
             
+            // Register edge vertices for custom normal calculation
+            for (int i = 0; i < vertices.size(); ++i) {
+                if (is_vertex_on_chunk_edge(vertices[i])) {
+                    register_edge_vertex(vertices[i], i);
+                }
+            }
+            
             // Apply smoothing if needed
             float smooth_angle = parent->get_smooth_normal_angle();
             if (smooth_angle > 0.0f) {
@@ -526,6 +549,8 @@ void YVoxelChunk::generate() {
             }
         }
     }
+
+
 
     // Stop the clock
     if (parent->get_debugging_config() > 1) {
@@ -875,6 +900,7 @@ void YVoxelChunk::SetPointSurrounding(Vector3i pointNumber, uint8_t desiredByte)
 void YVoxelChunk::clear_triangles() {
     mesh_triangles.clear();
     output_pos_to_index.clear();
+    clear_edge_vertex_data();
 }
 
 void YVoxelChunk::smooth_normals(PackedVector3Array &vertices, PackedVector3Array &normals, PackedInt32Array &indices, PackedColorArray &colors, float angle_threshold) {
@@ -1324,6 +1350,151 @@ float YVoxelChunk::get_density_at_point(Vector3i point_pos) {
     return YARNVOXEL_TERRAIN_SURFACE;
 }
 
+// Edge vertex tracking methods implementation
+uint32_t YVoxelChunk::hash_vertex_position(const Vector3& world_position) const {
+    // This function expects a WORLD position to be consistent across chunks.
+    uint32_t h = hash_murmur3_one_real(world_position.x);
+    h = hash_murmur3_one_real(world_position.y, h);
+    h = hash_murmur3_one_real(world_position.z, h);
+    return hash_fmix32(h);
+}
+
+bool YVoxelChunk::is_vertex_on_chunk_edge(const Vector3& local_position) const {
+    if (!parent_yarnvoxel) return false;
+
+    float voxel_resolution = parent_yarnvoxel->get_voxel_resolution();
+
+    // Check if the vertex is on any of the chunk boundaries
+    float chunk_width_world = YARNVOXEL_CHUNK_WIDTH * voxel_resolution;
+    float chunk_height_world = YARNVOXEL_CHUNK_HEIGHT * voxel_resolution;
+
+    // Use a small tolerance for floating point precision
+    const float tolerance = voxel_resolution * 0.01f;
+
+    return (Math::is_equal_approx(local_position.x, 0.0f, tolerance) ||
+            Math::is_equal_approx(local_position.x, chunk_width_world, tolerance) ||
+            Math::is_equal_approx(local_position.y, 0.0f, tolerance) ||
+            Math::is_equal_approx(local_position.y, chunk_height_world, tolerance) ||
+            Math::is_equal_approx(local_position.z, 0.0f, tolerance) ||
+            Math::is_equal_approx(local_position.z, chunk_width_world, tolerance));
+}
+
+void YVoxelChunk::register_edge_vertex(const Vector3& local_position, int normal_index) {
+    if (!is_vertex_on_chunk_edge(local_position)) return;
+
+    Vector3 world_position = local_position + bottom_corner_world_pos;
+    uint32_t hash = hash_vertex_position(world_position);
+    edge_vertex_normal_indices[hash] = normal_index;
+    edge_vertex_positions[hash] = world_position;
+
+    if (parent_yarnvoxel && parent_yarnvoxel->get_debugging_config() > 2) {
+        print_line(vformat("[YVoxelChunk %s] Registered edge vertex at world_pos %s (local %s) with normal index %d (hash: %d)", chunk_number, world_position, local_position, normal_index, hash));
+    }
+}
+
+void YVoxelChunk::synchronize_edge_normals_with_neighbors() {
+    if (!parent_yarnvoxel) return;
+    
+    if (parent_yarnvoxel->get_debugging_config() > 2) {
+        print_line(vformat("[YVoxelChunk] Synchronizing %d edge vertices for chunk %s", edge_vertex_normal_indices.size(), chunk_number));
+    }
+    
+    // For each edge vertex, find neighboring chunks and average normals
+    for (const KeyValue<uint32_t, int>& kvp : edge_vertex_normal_indices) {
+        const Vector3& position = edge_vertex_positions[kvp.key];
+        int current_normal_index = kvp.value;
+        
+        if (current_normal_index >= 0 && current_normal_index < normals.size()) {
+            Vector3 averaged_normal = get_averaged_edge_normal(position);
+            normals.write[current_normal_index] = averaged_normal;
+            
+            if (parent_yarnvoxel->get_debugging_config() > 3) {
+                print_line(vformat("[YVoxelChunk %s] Updated normal at index %d (hash: %d) for position %s from %s to %s", chunk_number, current_normal_index, kvp.key, position, normals[current_normal_index], averaged_normal));
+            }
+        }
+    }
+}
+
+Vector3 YVoxelChunk::get_averaged_edge_normal(const Vector3 &world_position) const {
+	if (!parent_yarnvoxel) {
+		return Vector3(0, 1, 0);
+	}
+
+	Vector3 accumulated_normal;
+	int count = 0;
+	uint32_t vertex_hash = hash_vertex_position(world_position);
+
+	// A much more robust way to find neighbors is to just check all of them.
+	for (int x = -1; x <= 1; ++x) {
+		for (int y = -1; y <= 1; ++y) {
+			for (int z = -1; z <= 1; ++z) {
+				Vector3i neighbor_chunk_pos = chunk_number + Vector3i(x, y, z);
+				YVoxelChunk *neighbor = parent_yarnvoxel->get_chunk(neighbor_chunk_pos);
+
+				if (neighbor && !neighbor->normals.is_empty()) {
+					// Check if the neighbor has this vertex hash.
+					if (neighbor->edge_vertex_normal_indices.has(vertex_hash)) {
+						int normal_idx = neighbor->edge_vertex_normal_indices[vertex_hash];
+						if (normal_idx >= 0 && normal_idx < neighbor->normals.size()) {
+							accumulated_normal += neighbor->normals[normal_idx];
+							count++;
+							if (parent_yarnvoxel->get_debugging_config() > 1 && neighbor != this) {
+								print_line(vformat("[YVoxelChunk %s] Found matching normal in neighbor %s for world_pos %s", chunk_number, neighbor_chunk_pos, world_position));
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (count > 0) {
+		return accumulated_normal.normalized();
+	}
+
+	// Fallback: should not be reached if called on a registered edge vertex.
+	if (edge_vertex_normal_indices.has(vertex_hash)) {
+		return normals[edge_vertex_normal_indices[vertex_hash]];
+	}
+
+	return Vector3(0, 1, 0);
+}
+
+void YVoxelChunk::clear_edge_vertex_data() {
+	edge_vertex_normal_indices.clear();
+    edge_vertex_positions.clear();
+}
+
+void YVoxelChunk::update_mesh_from_data() {
+	// Update the mesh with new normals
+	if (!vertices.is_empty() && normals.size() == vertices.size()) {
+		Array arrays;
+		arrays.resize(Mesh::ARRAY_MAX);
+		arrays[Mesh::ARRAY_VERTEX] = vertices;
+		arrays[Mesh::ARRAY_NORMAL] = normals;
+		arrays[Mesh::ARRAY_TEX_UV] = uvs;
+		arrays[Mesh::ARRAY_COLOR] = colors;
+		arrays[Mesh::ARRAY_INDEX] = indices;
+
+		Ref<ArrayMesh> current_mesh = get_mesh();
+		if (current_mesh.is_valid()) {
+			current_mesh->clear_surfaces();
+			current_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+		} else {
+			Ref<ArrayMesh> new_mesh;
+			new_mesh.instantiate();
+			new_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+			set_mesh(new_mesh);
+		}
+	}
+}
+
+void YVoxelChunk::force_synchronize_edge_normals() {
+    // Force synchronization and update the mesh
+    synchronize_edge_normals_with_neighbors();
+    update_mesh_from_data();
+}
+
 void YVoxelChunk::_bind_methods() {
     ClassDB::bind_method(D_METHOD("generate"), &YVoxelChunk::generate);
     ClassDB::bind_method(D_METHOD("deferred_set_dirty"), &YVoxelChunk::deferred_set_dirty);
@@ -1379,6 +1550,11 @@ void YVoxelChunk::_bind_methods() {
 
     ClassDB::bind_method(D_METHOD("set_collision_priority", "priority"), &YVoxelChunk::set_collision_priority);
     ClassDB::bind_method(D_METHOD("get_collision_priority"), &YVoxelChunk::get_collision_priority);
+
+    // Edge vertex tracking method bindings
+    ClassDB::bind_method(D_METHOD("synchronize_edge_normals_with_neighbors"), &YVoxelChunk::synchronize_edge_normals_with_neighbors);
+    ClassDB::bind_method(D_METHOD("clear_edge_vertex_data"), &YVoxelChunk::clear_edge_vertex_data);
+    ClassDB::bind_method(D_METHOD("force_synchronize_edge_normals"), &YVoxelChunk::force_synchronize_edge_normals);
 
     ADD_PROPERTY(PropertyInfo(Variant::PACKED_BYTE_ARRAY, "__data__", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_INTERNAL), "set_data", "get_data");
 

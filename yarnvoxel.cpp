@@ -868,6 +868,29 @@ void YarnVoxel::chunk_generated(Vector3i chunk_completed) {
 	if (is_generating) {
 		is_generating = false;
 		if (DirtyChunksQueue.size() <= 0) {
+			// All chunks are done generating, synchronize edge normals across all chunks
+			if (debugging_config > 1) {
+				print_line(vformat("[YarnVoxel] All chunks generated, synchronizing edge normals across %d chunks", yvchunks.size()));
+			}
+			
+			// Synchronize edge normals for all chunks
+			for (const KeyValue<Vector3i, ObjectID>& E : yvchunks) {
+				if (auto chunk = Object::cast_to<YVoxelChunk>(ObjectDB::get_instance(E.value))) {
+					if (chunk && chunk->is_inside_tree()) {
+						chunk->synchronize_edge_normals_with_neighbors();
+					}
+				}
+			}
+
+			// After synchronization, update all chunk meshes with the new normals
+			for (const KeyValue<Vector3i, ObjectID>& E : yvchunks) {
+				if (auto chunk = Object::cast_to<YVoxelChunk>(ObjectDB::get_instance(E.value))) {
+					if (chunk && chunk->is_inside_tree()) {
+						chunk->update_mesh_from_data();
+					}
+				}
+			}
+			
 			emit_signal(SNAME("finished"));
 		}
 	}

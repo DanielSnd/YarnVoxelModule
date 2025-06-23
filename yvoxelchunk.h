@@ -69,6 +69,12 @@ public:
     Vector<Color> colors;
     Vector<Vector3> faces;
 
+    // Edge vertex tracking for seamless normals
+    // This system tracks vertices that are on chunk boundaries and synchronizes their normals
+    // with neighboring chunks to eliminate visible seams between chunks.
+    HashMap<uint32_t, int> edge_vertex_normal_indices; // Hashed position -> normal index
+    HashMap<uint32_t, Vector3> edge_vertex_positions; // Hashed position -> actual position
+
     Vector3i chunk_number;
     Vector3i get_chunk_number() {return chunk_number;}
     bool pending_set_chunk_number_on_parent = false;
@@ -244,6 +250,18 @@ public:
     // Add method to get parent YarnVoxel
     YarnVoxel* get_parent_yarnvoxel() const;
     YarnVoxel* parent_yarnvoxel;
+
+    // Edge vertex tracking methods
+    // This system tracks vertices that are on chunk boundaries and synchronizes their normals
+    // with neighboring chunks to eliminate visible seams between chunks.
+    uint32_t hash_vertex_position(const Vector3& world_position) const;
+    bool is_vertex_on_chunk_edge(const Vector3& local_position) const;
+    void register_edge_vertex(const Vector3& local_position, int normal_index);
+    void synchronize_edge_normals_with_neighbors();
+    void update_mesh_from_data();
+    Vector3 get_averaged_edge_normal(const Vector3& world_position) const;
+    void clear_edge_vertex_data();
+    void force_synchronize_edge_normals(); // Manual trigger for testing
 };
 
 #endif //YVOXELCHUNK_H
