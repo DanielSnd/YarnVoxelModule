@@ -328,6 +328,7 @@ void YVoxelChunk::generate() {
     int16_t floatValue = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].floatValue;
     const bool serialize_when_generating = parent->get_serialize_when_generating();
     const uint8_t debugging_config = parent->get_debugging_config();
+    float voxel_resolution = parent->get_voxel_resolution();
     for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
         for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
             for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++){
@@ -360,7 +361,7 @@ void YVoxelChunk::generate() {
                     }
                     corner_index = corner_index+1;
                 }
-                MarchCube(Vector3i(x, y, z), GetCubeConfiguration(), relevant_byte, cube[0]->health, debugging_config, smoothing);
+                MarchCube(Vector3i(x, y, z), voxel_resolution, GetCubeConfiguration(), relevant_byte, cube[0]->health, debugging_config, smoothing);
             }
         }
     }
@@ -458,22 +459,70 @@ void YVoxelChunk::generate() {
         indices.push_back(index2);
     }
     if (use_custom_calculation) {
-        // Calculate normals if not using custom calculation
+        // Calculate normals if using custom calculation
         if (!vertices.is_empty()) {
             normals.resize(vertices.size());
             
-            // Simple flat normal calculation for each triangle
+            // Initialize all normals to zero for accumulation
+            for (int i = 0; i < normals.size(); ++i) {
+                normals.write[i] = Vector3(0, 0, 0);
+            }
+            
+            
+            // Calculate face normals and accumulate to vertex normals
             for (int i = 0; i < indices.size(); i += 3) {
-                Vector3 v1 = vertices[indices[i]];
-                Vector3 v2 = vertices[indices[i + 1]];
-                Vector3 v3 = vertices[indices[i + 2]];
+                int i1 = indices[i];
+                int i2 = indices[i + 1];
+                int i3 = indices[i + 2];
                 
-                Vector3 normal = (v2 - v1).cross(v3 - v1).normalized();
+                Vector3 v1 = vertices[i1];
+                Vector3 v2 = vertices[i2];
+                Vector3 v3 = vertices[i3];
                 
-                // Assign the same normal to all three vertices of this triangle
-                normals.write[indices[i]] = normal;
-                normals.write[indices[i + 1]] = normal;
-                normals.write[indices[i + 2]] = normal;
+                // Calculate face normal (ensure correct winding order)
+                Vector3 edge1 = v2 - v1;
+                Vector3 edge2 = v3 - v1;
+                Vector3 face_normal = edge2.cross(edge1).normalized();
+                
+                // Accumulate to vertex normals
+                normals.write[i1] += face_normal;
+                normals.write[i2] += face_normal;
+                normals.write[i3] += face_normal;
+            }
+            
+            // Normalize accumulated normals
+            for (int i = 0; i < normals.size(); ++i) {
+                normals.write[i] = normals.write[i].normalized();
+            }
+            
+            // Apply smoothing if needed
+            float smooth_angle = parent->get_smooth_normal_angle();
+            if (smooth_angle > 0.0f) {
+                // Convert to PackedArrays for smooth_normals function
+                PackedVector3Array packed_vertices;
+                PackedVector3Array packed_normals;
+                PackedInt32Array packed_indices;
+                PackedColorArray packed_colors;
+                
+                for (int i = 0; i < vertices.size(); ++i) {
+                    packed_vertices.push_back(vertices[i]);
+                    packed_normals.push_back(normals[i]);
+                    if (i < colors.size()) {
+                        packed_colors.push_back(colors[i]);
+                    }
+                }
+                
+                for (int i = 0; i < indices.size(); ++i) {
+                    packed_indices.push_back(indices[i]);
+                }
+                
+                // Apply smooth normals
+                smooth_normals(packed_vertices, packed_normals, packed_indices, packed_colors, smooth_angle);
+                
+                // Copy back the smoothed normals
+                for (int i = 0; i < normals.size(); ++i) {
+                    normals.write[i] = packed_normals[i];
+                }
             }
         }
     }
@@ -676,20 +725,21 @@ void YVoxelChunk::optimize_faces(float p_simplification_dist) {
 }
 
 void YVoxelChunk::populate_terrain(float height) {
+    float voxel_resolution = parent_yarnvoxel->get_voxel_resolution();
     ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
             for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
                 // Calculate world position by incorporating chunk number and resolution
-                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH * parent_yarnvoxel->get_voxel_resolution() + x * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
-                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT * parent_yarnvoxel->get_voxel_resolution() + y * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
-                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH * parent_yarnvoxel->get_voxel_resolution() + z * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
-
-                // Get terrain height using world position for continuous noise
+                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH * voxel_resolution + x * voxel_resolution) / 16.0f * 1.5f + 0.001f;
+                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT * voxel_resolution + y * voxel_resolution) / 16.0f * 1.5f + 0.001f;
+                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH * voxel_resolution + z * voxel_resolution) / 16.0f * 1.5f + 0.001f;
                 const auto thisHeight = YarnVoxel::static_perlin_noise_3d(worldX, worldY, worldZ);
-
-                // Set the value of this point in the terrainMap.
-                points[x][y][z] = YarnVoxelData::YVPointValue(1,floatToInt16(static_cast<float>(y) - thisHeight));
+                
+                float currentVoxelWorldY = static_cast<float>(y) * voxel_resolution;
+                float scaledTerrainHeight = thisHeight * height * voxel_resolution; // Scale terrain height by resolution
+                
+                points[x][y][z] = YarnVoxelData::YVPointValue(1, floatToInt16(currentVoxelWorldY - scaledTerrainHeight));
             }
     parent_yarnvoxel->set_dirty_chunk(chunk_number);
 }
@@ -708,6 +758,7 @@ void YVoxelChunk::populate_chunk_3d() {
     if(!has_registered_chunk_number) {
         set_chunk_number(chunk_number);
     }
+    float voxel_resolution = parent_yarnvoxel->get_voxel_resolution();
     ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
@@ -721,7 +772,8 @@ void YVoxelChunk::populate_chunk_3d() {
                 const auto thisHeight = YarnVoxel::static_perlin_noise_3d(worldX, worldY, worldZ);
 
                 // Set the value of this point in the terrainMap
-                points[x][y][z] = YarnVoxelData::YVPointValue(1, floatToInt16(thisHeight));
+                float scaledNoiseValue = thisHeight * voxel_resolution;
+                points[x][y][z] = YarnVoxelData::YVPointValue(1, floatToInt16(scaledNoiseValue));
             }
 
     constexpr float underSlopeForStone = -60, aboveSlopeForStone = 60;
@@ -825,12 +877,88 @@ void YVoxelChunk::clear_triangles() {
     output_pos_to_index.clear();
 }
 
-void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config, bool no_smoothing) {
+void YVoxelChunk::smooth_normals(PackedVector3Array &vertices, PackedVector3Array &normals, PackedInt32Array &indices, PackedColorArray &colors, float angle_threshold) {
+    if (vertices.is_empty() || normals.is_empty() || indices.is_empty()) {
+        return;
+    }
+
+    bool has_colors = !colors.is_empty();
+
+    float normal_merge_threshold = Math::cos(Math::deg_to_rad(angle_threshold));
+
+    struct VertexKey {
+        Vector3 pos;
+        Color color;
+        bool has_color;
+        bool operator==(const VertexKey &other) const {
+            return pos.is_equal_approx(other.pos) && (!has_color || color.is_equal_approx(other.color));
+        }
+    };
+
+    struct VertexKeyHasher {
+        static _FORCE_INLINE_ uint32_t hash(const VertexKey &k) {
+            uint32_t h = hash_murmur3_one_real(k.pos.x);
+            h = hash_murmur3_one_real(k.pos.y, h);
+            h = hash_murmur3_one_real(k.pos.z, h);
+            if (k.has_color) {
+                h = hash_murmur3_one_real(k.color.r, h);
+                h = hash_murmur3_one_real(k.color.g, h);
+                h = hash_murmur3_one_real(k.color.b, h);
+                h = hash_murmur3_one_real(k.color.a, h);
+            }
+            return hash_fmix32(h);
+        }
+    };
+
+    HashMap<VertexKey, Vector<int>, VertexKeyHasher> unique_vertices;
+    for (int i = 0; i < vertices.size(); ++i) {
+        VertexKey key;
+        key.pos = vertices[i];
+        key.color = has_colors ? colors[i] : Color();
+        key.has_color = has_colors;
+        unique_vertices[key].push_back(i);
+    }
+
+    PackedVector3Array new_normals;
+    new_normals.resize(vertices.size());
+
+    // For each group of unique vertices
+    for (const KeyValue<VertexKey, Vector<int>> &E : unique_vertices) {
+        const Vector<int> &group = E.value;
+        for (int i = 0; i < group.size(); ++i) {
+            int idx = group[i];
+            Vector3 accum = Vector3();
+            int count = 0;
+            for (int j = 0; j < group.size(); ++j) {
+                int other_idx = group[j];
+                float dot = normals[idx].dot(normals[other_idx]);
+                if (dot >= normal_merge_threshold) {
+                    accum += normals[other_idx];
+                    count++;
+                }
+            }
+            if (count > 0) {
+                new_normals.write[idx] = accum.normalized();
+            } else {
+                new_normals.write[idx] = normals[idx];
+            }
+        }
+    }
+    
+    // Copy the smoothed normals back to the original array
+    for (int i = 0; i < normals.size(); ++i) {
+        normals.write[i] = new_normals[i];
+    }
+}
+
+void YVoxelChunk::MarchCube (Vector3i position, float voxel_resolution, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config, bool smoothing) {
     bool is_triple_polycount = parent_yarnvoxel->is_triple_polycount;
     // If the configuration of this cube is 0 or 255 (completely inside the terrain or completely outside of it) we don't need to do anything.
     if (configIndex == 0 || configIndex == 255) return;
     Vector3 triangleVert1 = YARNVOXEL_VECTOR3_ZERO, triangleVert2 = YARNVOXEL_VECTOR3_ZERO;
-    const Vector3 posBlockBottomCorner = position;
+    const Vector3 posBlockBottomCorner = Vector3(position.x * voxel_resolution, 
+                                                 position.y * voxel_resolution, 
+                                                 position.z * voxel_resolution);
     int currentTriangleCount = 0;
     int trianglesCreated = 0;
     bool already_has_prop = false;
@@ -843,11 +971,11 @@ void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desired
             // If the current edgeIndex is -1, there are no more indices and we can exit the function.
             if (indice == -1) return;
             // Get the vertices for the start and end of this edge.
-            Vector3 vert1 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][0]];
-            Vector3 vert2 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][1]];
+            Vector3 vert1 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][0]] * voxel_resolution;
+            Vector3 vert2 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][1]] * voxel_resolution;
 
             Vector3 vertPosition;
-            if (no_smoothing) {
+            if (!smoothing) {
                 // Without smoothing, just use the midpoint of the edge
                 vertPosition = (vert1 + vert2) * 0.5;
             } else {

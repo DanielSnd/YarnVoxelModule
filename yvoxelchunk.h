@@ -30,6 +30,7 @@
 #include "core/math/triangulate.h"
 #include "scene/3d/importer_mesh_instance_3d.h"
 #include "scene/resources/3d/importer_mesh.h"
+#include "core/templates/hashfuncs.h"
 // #include "scene/3d/physics_body_3d.h"
 // #include "scene/main/node.h"
 
@@ -197,8 +198,9 @@ public:
 
     void clear_triangles();
 
-    Vector3 get_world_pos_from_point_number(Vector3i pointNumber) const;
+    void smooth_normals(PackedVector3Array &vertices, PackedVector3Array &normals, PackedInt32Array &indices, PackedColorArray &colors, float angle_threshold);
 
+    Vector3 get_world_pos_from_point_number(Vector3i pointNumber) const;
 
     void AttemptSetDirtyNeighbour(Vector3i pointHit) const;
 
@@ -229,7 +231,7 @@ public:
 
     void optimize_faces(float p_simplification_dist = 0.1f);
 
-    void MarchCube(Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config, bool no_smoothing = false);
+    void MarchCube(Vector3i position, float voxel_resolution, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config, bool no_smoothing = false);
 
     int FindCubeConfiguration(int x, int y, int z);
 

@@ -36,12 +36,17 @@ class YarnVoxel : public Node3D {
 	bool calculate_custom_normals;
 	bool serialize_when_generating;
 	float simplification_distance;
+	float smooth_normal_angle;
+
+	float line_noise_strength = 0.1f;
+	float line_noise_frequency = 0.1f;
 
 protected:
 	static void _bind_methods();
 	void _notification(int p_what);
 
 public:
+	uint8_t degugging_level = 0;
 	uint64_t ticks_last_started_generating;
 	uint64_t ticks_last_completed;
 	Vector3i last_chunk_started_generating;
@@ -67,8 +72,15 @@ public:
 	Ref<Material> get_grass_material() const {return grass_material;}
 	void set_calculate_custom_normals(bool enabled) {calculate_custom_normals = enabled;}
 	bool get_calculate_custom_normals() const {return calculate_custom_normals;}
+	void set_smooth_normal_angle(float angle) {smooth_normal_angle = angle;}
+	float get_smooth_normal_angle() const {return smooth_normal_angle;}
 	void set_serialize_when_generating(bool enabled) {serialize_when_generating = enabled;}
 	bool get_serialize_when_generating() const {return serialize_when_generating;}
+
+	void set_line_noise_strength(float strength) { line_noise_strength = strength; }
+	float get_line_noise_strength() const { return line_noise_strength; }
+	void set_line_noise_frequency(float frequency) { line_noise_frequency = frequency; }
+	float get_line_noise_frequency() const { return line_noise_frequency; }
 
 	_FORCE_INLINE_ static Vector<ObjectID> yarnvoxel_instances;
 
@@ -124,7 +136,15 @@ public:
 
 	Ref<Material> get_material();
 
-	void changeFloatAtPosition(Vector3i position, float newFloat, uint8_t newBlockType, uint8_t health);
+	void change_health_at_position(Vector3i position, uint8_t newHealth);
+
+	void change_float_at_position(Vector3i position, float newFloat, uint8_t newBlockType, uint8_t health);
+
+    void modify_line(Vector3i start, Vector3i end, float amount, uint8_t typeOfBlock = 1, int thicknessStart = 1, int thicknessEnd = 1, bool adding = false);
+
+    void add_line(Vector3i start, Vector3i end, float amount, uint8_t typeOfBlock = 1, int thicknessStart = 1, int thicknessEnd = 1);
+
+    void set_line(Vector3i start, Vector3i end, float value, uint8_t typeOfBlock = 1, int thicknessStart = 1, int thicknessEnd = 1);
 
 	void modify_voxel_area(Vector3i pos, float amount, int brushSize, int block_type = -1);
 

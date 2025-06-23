@@ -203,11 +203,16 @@ YVoxelChunk* YarnVoxel::get_chunk(Vector3i chunkPosition) {
 		chunk->has_registered_chunk_number = true;
 		yvchunks[chunkPosition] = chunk->get_instance_id();
 		// Debug print for chunk creation
-		print_line(vformat("[YarnVoxel::get_chunk] Creating chunk at %s | YARNVOXEL_CHUNK_WIDTH: %d, YARNVOXEL_CHUNK_HEIGHT: %d", chunkPosition, YARNVOXEL_CHUNK_WIDTH, YARNVOXEL_CHUNK_HEIGHT));
+		if (debugging_config >= 1) {
+			print_line(vformat("[YarnVoxel::get_chunk] Creating chunk at %s | YARNVOXEL_CHUNK_WIDTH: %d, YARNVOXEL_CHUNK_HEIGHT: %d", chunkPosition, YARNVOXEL_CHUNK_WIDTH, YARNVOXEL_CHUNK_HEIGHT));
+		}
 		Vector3 bottom_corner = GetBottomCornerForChunkInNumber(chunkPosition);
 		chunk->set_bottom_corner_world_pos(bottom_corner);
 		chunk->set_global_position(bottom_corner);
-		print_line(vformat("[YarnVoxel::get_chunk] Bottom corner world pos for chunk %s: %s", chunkPosition, bottom_corner));
+		
+		if (debugging_config>= 1) {
+			print_line(vformat("[YarnVoxel::get_chunk] Bottom corner world pos for chunk %s: %s", chunkPosition, bottom_corner));
+		}
 		return chunk;
 	}
 	return Object::cast_to<YVoxelChunk>(ObjectDB::get_instance(yvchunks[chunkPosition]));
@@ -222,7 +227,7 @@ Ref<Material> YarnVoxel::get_material() {
 }
 
 void YarnVoxel::changeFloat(float newFloat, uint8_t newBlockType, uint8_t health) {
-	changeFloatAtPosition(debug_pos, newFloat, newBlockType, health);
+	change_float_at_position(debug_pos, newFloat, newBlockType, health);
 }
 
 bool YarnVoxel::handle_dirty_chunks() {
@@ -297,7 +302,12 @@ void YarnVoxel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_material", "material"), &YarnVoxel::set_material);
 	ClassDB::bind_method(D_METHOD("get_material"), &YarnVoxel::get_material);
 	
-	ClassDB::bind_method(D_METHOD("changeFloatAtPosition", "position", "newFloat", "newBlockType", "health"), &YarnVoxel::changeFloatAtPosition, DEFVAL(255));
+	ClassDB::bind_method(D_METHOD("change_float_at_position", "position", "newFloat", "newBlockType", "health"), &YarnVoxel::change_float_at_position, DEFVAL(255));
+	ClassDB::bind_method(D_METHOD("change_health_at_position", "position", "newHealth"), &YarnVoxel::change_health_at_position);
+
+	ClassDB::bind_method(D_METHOD("add_line", "start", "end", "amount", "typeOfBlock", "thicknessStart", "thicknessEnd"), &YarnVoxel::add_line, DEFVAL(1), DEFVAL(1), DEFVAL(1));
+	ClassDB::bind_method(D_METHOD("set_line", "start", "end", "value", "typeOfBlock", "thicknessStart", "thicknessEnd"), &YarnVoxel::set_line, DEFVAL(1), DEFVAL(1), DEFVAL(1));
+
 	ClassDB::bind_method(D_METHOD("modify_voxel_area", "pos", "amount", "brushSize", "block_type"), &YarnVoxel::modify_voxel_area, DEFVAL(0));
 	ClassDB::bind_method(D_METHOD("damage_voxel_area", "pos", "amount", "brushSize"), &YarnVoxel::damage_voxel_area);
 	ClassDB::bind_method(D_METHOD("smooth_voxel_area", "pos", "amount", "brushSize"), &YarnVoxel::smooth_voxel_area);
@@ -324,6 +334,8 @@ void YarnVoxel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_grass_material", "val"), &YarnVoxel::set_grass_material);
 	ClassDB::bind_method(D_METHOD("set_calculate_custom_normals", "val"), &YarnVoxel::set_calculate_custom_normals);
 	ClassDB::bind_method(D_METHOD("get_calculate_custom_normals"), &YarnVoxel::get_calculate_custom_normals);
+	ClassDB::bind_method(D_METHOD("set_smooth_normal_angle", "angle"), &YarnVoxel::set_smooth_normal_angle);
+	ClassDB::bind_method(D_METHOD("get_smooth_normal_angle"), &YarnVoxel::get_smooth_normal_angle);
 	ClassDB::bind_method(D_METHOD("get_serialize_when_generating"), &YarnVoxel::get_serialize_when_generating);
 	ClassDB::bind_method(D_METHOD("set_serialize_when_generating", "val"), &YarnVoxel::set_serialize_when_generating);
 	ClassDB::bind_method(D_METHOD("set_smoothing", "val"), &YarnVoxel::set_smoothing);
@@ -331,6 +343,11 @@ void YarnVoxel::_bind_methods() {
 	
 	ClassDB::bind_method(D_METHOD("get_voxel_resolution"), &YarnVoxel::get_voxel_resolution);
 	ClassDB::bind_method(D_METHOD("set_voxel_resolution", "resolution"), &YarnVoxel::set_voxel_resolution);
+	
+	ClassDB::bind_method(D_METHOD("set_line_noise_strength", "strength"), &YarnVoxel::set_line_noise_strength);
+	ClassDB::bind_method(D_METHOD("get_line_noise_strength"), &YarnVoxel::get_line_noise_strength);
+	ClassDB::bind_method(D_METHOD("set_line_noise_frequency", "frequency"), &YarnVoxel::set_line_noise_frequency);
+	ClassDB::bind_method(D_METHOD("get_line_noise_frequency"), &YarnVoxel::get_line_noise_frequency);
 	
 	ClassDB::bind_method(D_METHOD("voxel_to_world_position", "voxel_pos"), &YarnVoxel::voxel_to_world_position);
 	ClassDB::bind_method(D_METHOD("world_to_voxel_position", "world_pos"), &YarnVoxel::world_to_voxel_position);
@@ -341,8 +358,11 @@ void YarnVoxel::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "grass_material", PROPERTY_HINT_RESOURCE_TYPE, "BaseMaterial3D,ShaderMaterial"), "set_grass_material", "get_grass_material");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "smoothing"), "set_smoothing", "get_smoothing");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "calculate_custom_normals"), "set_calculate_custom_normals", "get_calculate_custom_normals");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "smooth_normal_angle", PROPERTY_HINT_RANGE, "0,180,0.1"), "set_smooth_normal_angle", "get_smooth_normal_angle");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "serialize_when_generating"), "set_serialize_when_generating", "get_serialize_when_generating");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "voxel_resolution", PROPERTY_HINT_RANGE, "0.1,2.0,0.1"), "set_voxel_resolution", "get_voxel_resolution");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "line_noise_strength", PROPERTY_HINT_RANGE, "0.0,2.0,0.01"), "set_line_noise_strength", "get_line_noise_strength");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "line_noise_frequency", PROPERTY_HINT_RANGE, "0.0,1.0,0.01"), "set_line_noise_frequency", "get_line_noise_frequency");
 	
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "debug_pos"), "set_debug_pos", "get_debug_pos");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "cell_size"), "set_cell_size", "get_cell_size");
@@ -388,12 +408,129 @@ YVoxelChunk *YarnVoxel::get_chunk_from_gdscript(Vector3i chunk_number) {
 	return tryChunk;
 }
 
-void YarnVoxel::changeFloatAtPosition(Vector3i position, float newFloat, uint8_t newBlockType, uint8_t health) {
+void YarnVoxel::change_health_at_position(Vector3i position, uint8_t newHealth) {
+	YVoxelChunk* chunk = get_chunk(GetChunkNumberFromPosition(Vector3(position)));
+	if (chunk) {
+		Vector3i pointNumber = GetPointNumberFromPosition(Vector3(position));
+		float density = chunk->get_density_at_point(pointNumber);
+		chunk->SetPointDensity(pointNumber, density, newHealth);
+	}
+}
+void YarnVoxel::change_float_at_position(Vector3i position, float newFloat, uint8_t newBlockType, uint8_t health) {
 	YVoxelChunk* chunk = get_chunk(GetChunkNumberFromPosition(Vector3(position)));
 	if (chunk) {
 		Vector3i pointNumber = GetPointNumberFromPosition(Vector3(position));
 		chunk->SetPointDensity(pointNumber, newFloat, newBlockType);
 	}
+}
+
+void YarnVoxel::add_line(Vector3i start, Vector3i end, float amount, uint8_t typeOfBlock, int thicknessStart, int thicknessEnd) {
+	modify_line(start, end, amount, typeOfBlock, thicknessStart, thicknessEnd, true);
+}
+
+void YarnVoxel::set_line(Vector3i start, Vector3i end, float value, uint8_t typeOfBlock, int thicknessStart, int thicknessEnd) {
+	modify_line(start, end, value, typeOfBlock, thicknessStart, thicknessEnd, false);
+}
+
+void YarnVoxel::modify_line(Vector3i start, Vector3i end, float amount, uint8_t typeOfBlock, int thicknessStart, int thicknessEnd, bool adding) {
+	
+	Vector3i chunk_number = GetChunkNumberFromPosition(start);
+	YVoxelChunk* modify_chunk = get_chunk(chunk_number);
+	if (!modify_chunk) return;
+
+	int xDiff = Math::abs(end.x - start.x);
+	int yDiff = Math::abs(end.y - start.y);
+	int zDiff = Math::abs(end.z - start.z);
+
+	int xStep = start.x == end.x ? 0 : (start.x < end.x ? 1 : -1);
+	int yStep = start.y == end.y ? 0 : (start.y < end.y ? 1 : -1);
+	int zStep = start.z == end.z ? 0 : (start.z < end.z ? 1 : -1);
+	
+	float totalStepCount = MAX(xDiff, MAX(yDiff, zDiff));
+
+	for (int i = 0; i <= totalStepCount; i++)
+	{
+		float lerpInverse = Math::inverse_lerp(0, totalStepCount, i);
+		int thickness =
+			static_cast<int>(Math::lerp(thicknessStart, thicknessEnd,lerpInverse));
+		int thicknessSquared = thickness * thickness;
+		int xIteration = static_cast<int>(Math::lerp(0, xDiff, lerpInverse));
+		int yIteration = static_cast<int>(Math::lerp(0, yDiff, lerpInverse));
+		int zIteration = static_cast<int>(Math::lerp(0, zDiff, lerpInverse));
+		
+		int x = start.x + (int) (xStep * xIteration);
+		int y = start.y + (int) (yStep * yIteration);
+		int z = start.z + (int) (zStep * zIteration);
+
+		if ((xStep < 0 && x <= end.x) || (xStep >= 0 && x >= end.x)) x = end.x;
+		if ((yStep < 0 && y <= end.y) || (yStep >= 0 && y >= end.y)) y = end.y;
+		if ((zStep < 0 && z <= end.z) || (zStep >= 0 && z >= end.z)) z = end.z;
+		//Debug.Log($"Iteration {i} Spot {x},{y},{z}");
+
+		for (int xThick = x - thickness; xThick <= x + thickness; xThick++)
+		{
+			int xThickSquared = (xThick - x) * (xThick - x);
+			for (int yThick = y - thickness; yThick <= y + thickness; yThick++)
+			{
+				int yThickSquared = (yThick - y) * (yThick - y);
+				for (int zThick = z - thickness; zThick <= z + thickness; zThick++)
+				{
+					int zThickSquared = (zThick - z) * (zThick - z);
+					int totalcurrentThicknessSquared = Math::abs(xThickSquared + yThickSquared + zThickSquared);
+					// Check if the thickened position is within bounds
+					Vector3i desiredSpot = Vector3i(xThick, yThick, zThick);
+					float lerpDistance = Math::inverse_lerp(0.0f, thicknessSquared, totalcurrentThicknessSquared);
+					if (totalcurrentThicknessSquared <= thicknessSquared)
+					{
+						Vector3i check_chunk_number = GetChunkNumberFromPosition(Vector3(xThick, yThick, zThick));
+						if (check_chunk_number != chunk_number) {
+							modify_chunk->deferred_set_dirty();
+							chunk_number = check_chunk_number;
+							modify_chunk = get_chunk(chunk_number);
+							if (!modify_chunk) continue;
+						}
+
+						Vector3i point_position = GetPointNumberFromPosition(Vector3(xThick, yThick, zThick));
+						if (!modify_chunk->is_point_position_in_range_without_neighbours(point_position.x, point_position.y, point_position.z)) {
+							continue;
+						}
+
+						auto& point_value = modify_chunk->points[point_position.x][point_position.y][point_position.z];
+						if (amount != 0.0f) {
+							float noise = static_perlin_noise_3d(xThick * line_noise_frequency, yThick * line_noise_frequency, zThick * line_noise_frequency) * line_noise_strength;
+							int16_t modifiedAmount = floatToInt16((1.0f - lerpDistance) * (amount + noise));
+							if (adding) {
+								if (modifiedAmount > 0 && point_value.floatValue > INT16_MAX - modifiedAmount) {
+									point_value.floatValue = INT16_MAX;
+								} else if (modifiedAmount < 0 && point_value.floatValue < INT16_MIN - modifiedAmount) {
+									point_value.floatValue = INT16_MIN;
+								} else {
+									point_value.floatValue += modifiedAmount;
+								}
+							} else {
+								point_value.floatValue = modifiedAmount;
+							}
+							
+							if (point_value.byteValue == 0) {
+								if (point_value.floatValue < YARNVOXEL_TERRAIN_SURFACE) {
+									point_value.byteValue = typeOfBlock > 0 ? static_cast<uint8_t>(typeOfBlock) : 2;
+								}
+							} else if (point_value.floatValue > YARNVOXEL_TERRAIN_SURFACE) {
+								point_value.byteValue = 0;
+							}
+						} else if (typeOfBlock > 0) {
+							point_value.byteValue = static_cast<uint8_t>(typeOfBlock);
+						}
+
+						if (IsPointNumberInBoundary(point_position)) {
+							modify_chunk->AttemptSetDirtyNeighbour(point_position);
+						}
+					}
+				}
+			}
+		}
+	}
+	modify_chunk->deferred_set_dirty();
 }
 
 void YarnVoxel::modify_voxel_area(Vector3i pos, float amount, int brushSize, int block_type) {
@@ -805,6 +942,7 @@ YarnVoxel::YarnVoxel() {
 	calculate_custom_normals = false;
 	serialize_when_generating = true;
 	simplification_distance = 0.0f;
+	smooth_normal_angle = 30.0f;
 	is_generating = false;
 	is_debugging_chunk = false;
 	is_triple_polycount = false;
