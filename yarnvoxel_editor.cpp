@@ -3,8 +3,6 @@
 
 #include "yarnvoxel_editor.h"
 
-using namespace godot;
-
 void YarnVoxelEditorPlugin::_notification(int p_what) {
     switch (p_what) {
         case NOTIFICATION_ENTER_TREE: {
@@ -200,7 +198,7 @@ void YarnVoxelEditorPlugin::handle_holding_down_sculpt() {
 			tryChunk = selected_node->get_chunk(chunk_number);
 		if (tryChunk != nullptr) {
 			if (is_holding_shift && yvoxel_bottom_panel->current_tool_selected == 0) {
-				selected_node->smooth_voxel_area(raycast_hit_pos,abs(yvoxel_bottom_panel->brush_strength_value),static_cast<int>(yvoxel_bottom_panel->brush_size_value));
+				selected_node->smooth_voxel_area(raycast_hit_pos, Math::abs(yvoxel_bottom_panel->brush_strength_value),static_cast<int>(yvoxel_bottom_panel->brush_size_value));
 			} else {
 				//tryChunk->SetPointDensity(pointsPosition,-0.5,YarnVoxel::BlockType::GRASS);
 				selected_node->modify_voxel_area(raycast_hit_pos,yvoxel_bottom_panel->brush_strength_value * (yvoxel_bottom_panel->current_tool_selected == 1 ? -1 : 1) * (is_holding_ctrl ? -1 : 1) * (yvoxel_bottom_panel->current_tool_selected == 2 ? 0 : 1), static_cast<int>(yvoxel_bottom_panel->brush_size_value),yvoxel_bottom_panel->current_block_type_selected + 1);

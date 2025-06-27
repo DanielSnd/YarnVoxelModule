@@ -93,7 +93,7 @@ void YVoxelChunk::add_triangle(Vector3 vert1,Vector3 vert2,Vector3 vert3,Surface
 }
 
 bool YVoxelChunk::compare_float_values_sameish(int16_t f1, int16_t f2) {
-    return (ABS(f1 - f2) < MORE_THAN_ZERO_SHORT) || ((f1 > ALMOST_FULL_SHORT && f2 > ALMOST_FULL_SHORT) || (f1 < ALMOST_EMPTY_SHORT && f2 < ALMOST_EMPTY_SHORT));
+    return (Math::abs(f1 - f2) < MORE_THAN_ZERO_SHORT) || ((f1 > ALMOST_FULL_SHORT && f2 > ALMOST_FULL_SHORT) || (f1 < ALMOST_EMPTY_SHORT && f2 < ALMOST_EMPTY_SHORT));
 }
 
 void YVoxelChunk::serialize_to_data() {
@@ -1623,6 +1623,6 @@ YVoxelChunk::YVoxelChunk() {
     
     chunk_number = Vector3i{-99999,-99999,-99999};
 
-    completed_generation = StaticCString::create("completed_generation");
+    completed_generation = SNAME("completed_generation");
 }
 

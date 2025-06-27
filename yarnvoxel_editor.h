@@ -30,9 +30,6 @@
 
 class YVoxelChunkInspectorPlugin;
 
-namespace godot {
-
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -166,8 +163,6 @@ class YVoxelChunkEditorPlugin : public EditorPlugin {
         YVoxelChunkEditorPlugin();
         ~YVoxelChunkEditorPlugin();
     };
-}
-
 #endif
 
 #endif //YARNVOXEL_EDITOR_H

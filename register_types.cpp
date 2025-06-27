@@ -21,8 +21,6 @@
 #include "editor/plugins/editor_plugin.h"
 #endif
 
-using namespace godot;
-
 void initialize_yarnvoxel_module(ModuleInitializationLevel p_level) {
 #ifdef TOOLS_ENABLED
 	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
