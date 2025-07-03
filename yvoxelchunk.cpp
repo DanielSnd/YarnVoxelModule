@@ -23,7 +23,6 @@ YarnVoxel* YVoxelChunk::get_parent_yarnvoxel() const {
     return nullptr;
 }
 
-
 void YVoxelChunk::AttemptSetDirtyNeighbour(Vector3i pointHit) const {
     ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
     
@@ -311,8 +310,8 @@ void YVoxelChunk::generate() {
         }
     }
 
-    // Stop the clock
-    if (parent->get_debugging_config() > 1) {
+    // // Stop the clock
+    if (debugging_level > 1) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_neighbour_cache);
@@ -327,8 +326,7 @@ void YVoxelChunk::generate() {
     uint8_t value = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].byteValue;
     int16_t floatValue = points[0][YARNVOXEL_CHUNK_HEIGHT-1][0].floatValue;
     const bool serialize_when_generating = parent->get_serialize_when_generating();
-    const uint8_t debugging_config = parent->get_debugging_config();
-    float voxel_resolution = parent->get_voxel_resolution();
+    
     for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
         for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++) {
             for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++){
@@ -348,26 +346,24 @@ void YVoxelChunk::generate() {
                     // END SERIALIZATION SECTION
                 }
 
-                //if (YarnVoxel::get_singleton()->is_debugging_chunk && (z != 0)) continue;
                 int corner_index = 0;
                 uint8_t relevant_byte = 0;
                 for (const Vector3i corner : YarnVoxelData::CornerTable) {
                     cube[corner_index] = &points[x + corner.x][y + corner.y][z + corner.z];
-                    // if (YarnVoxel::get_singleton()->is_debugging_chunk) {
-                    //     print_line(vformat("Point %s doing corner %s index %s new point %s",Vector3i(x,y,z),corner,corner_index,Vector3i(x+corner.x,y+corner.y,z+corner.z)));
-                    // }
+
                     if (relevant_byte == 0 && cube[corner_index]->byteValue != 0) {
                         relevant_byte = cube[corner_index]->byteValue;
                     }
                     corner_index = corner_index+1;
                 }
-                MarchCube(Vector3i(x, y, z), voxel_resolution, GetCubeConfiguration(), relevant_byte, cube[0]->health, debugging_config, smoothing);
+
+                MarchCube(Vector3i(x, y, z), GetCubeConfiguration(), relevant_byte, cube[0]->health, smoothing);
             }
         }
     }
 
     // Stop the clock
-    if (parent->get_debugging_config() > 1) {
+    if (debugging_level > 1) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_marching_cubes);
@@ -474,6 +470,8 @@ void YVoxelChunk::generate() {
         indices.push_back(index3);
         indices.push_back(index2);
     }
+
+
     if (use_custom_calculation) {
         // Calculate normals if using custom calculation
         if (!vertices.is_empty()) {
@@ -553,7 +551,7 @@ void YVoxelChunk::generate() {
 
 
     // Stop the clock
-    if (parent->get_debugging_config() > 1) {
+    if (debugging_level > 1) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_normal_calculation);
@@ -583,7 +581,7 @@ void YVoxelChunk::generate() {
             set_mesh(new_mesh);
         }
         // Stop the clock
-        if (parent->get_debugging_config() > 1) {
+        if (debugging_level > 1) {
             auto stop = std::chrono::high_resolution_clock::now();
             // Calculate the duration in microseconds
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_mesh_commit);
@@ -613,7 +611,7 @@ void YVoxelChunk::generate() {
     emit_signal(completed_generation, chunk_number);
 
     // Stop the clock
-    if (parent->get_debugging_config() > 0) {
+    if (debugging_level > 0) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
@@ -717,7 +715,7 @@ void YVoxelChunk::optimize_faces(float p_simplification_dist) {
 
 
     // Stop the clock
-    if (parent_yarnvoxel->get_debugging_config() > 1) {
+    if (debugging_level > 1) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_optimize_faces);
@@ -739,7 +737,7 @@ void YVoxelChunk::optimize_faces(float p_simplification_dist) {
     auto start_set_collision_data = std::chrono::high_resolution_clock::now();
     PhysicsServer3D::get_singleton()->shape_set_data(root_collision_shape, d);
     // Stop the clock
-    if (parent_yarnvoxel->get_debugging_config() > 1) {
+    if (debugging_level > 1) {
         auto stop = std::chrono::high_resolution_clock::now();
         // Calculate the duration in microseconds
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start_set_collision_data);
@@ -750,19 +748,19 @@ void YVoxelChunk::optimize_faces(float p_simplification_dist) {
 }
 
 void YVoxelChunk::populate_terrain(float height) {
-    float voxel_resolution = parent_yarnvoxel->get_voxel_resolution();
+    
     ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
             for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
                 // Calculate world position by incorporating chunk number and resolution
-                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH * voxel_resolution + x * voxel_resolution) / 16.0f * 1.5f + 0.001f;
-                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT * voxel_resolution + y * voxel_resolution) / 16.0f * 1.5f + 0.001f;
-                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH * voxel_resolution + z * voxel_resolution) / 16.0f * 1.5f + 0.001f;
+                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH  + x ) / 16.0f * 1.5f + 0.001f;
+                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT  + y ) / 16.0f * 1.5f + 0.001f;
+                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH  + z ) / 16.0f * 1.5f + 0.001f;
                 const auto thisHeight = YarnVoxel::static_perlin_noise_3d(worldX, worldY, worldZ);
                 
-                float currentVoxelWorldY = static_cast<float>(y) * voxel_resolution;
-                float scaledTerrainHeight = thisHeight * height * voxel_resolution; // Scale terrain height by resolution
+                float currentVoxelWorldY = static_cast<float>(y) ;
+                float scaledTerrainHeight = thisHeight * height ; // Scale terrain height by resolution
                 
                 points[x][y][z] = YarnVoxelData::YVPointValue(1, floatToInt16(currentVoxelWorldY - scaledTerrainHeight));
             }
@@ -783,21 +781,21 @@ void YVoxelChunk::populate_chunk_3d() {
     if(!has_registered_chunk_number) {
         set_chunk_number(chunk_number);
     }
-    float voxel_resolution = parent_yarnvoxel->get_voxel_resolution();
+    
     ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
     for (int x = 0; x < YARNVOXEL_CHUNK_WIDTH; x++)
         for (int z = 0; z < YARNVOXEL_CHUNK_WIDTH; z++)
             for (int y = YARNVOXEL_CHUNK_HEIGHT-1; y >= 0; y--) {
                 // Calculate world position by incorporating chunk number and resolution
-                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH * parent_yarnvoxel->get_voxel_resolution() + x * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
-                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT * parent_yarnvoxel->get_voxel_resolution() + y * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
-                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH * parent_yarnvoxel->get_voxel_resolution() + z * parent_yarnvoxel->get_voxel_resolution()) / 16.0f * 1.5f + 0.001f;
+                float worldX = (chunk_number.x * YARNVOXEL_CHUNK_WIDTH + x) / 16.0f * 1.5f + 0.001f;
+                float worldY = (chunk_number.y * YARNVOXEL_CHUNK_HEIGHT + y) / 16.0f * 1.5f + 0.001f;
+                float worldZ = (chunk_number.z * YARNVOXEL_CHUNK_WIDTH + z) / 16.0f * 1.5f + 0.001f;
 
                 // Get terrain height using world position for continuous noise
                 const auto thisHeight = YarnVoxel::static_perlin_noise_3d(worldX, worldY, worldZ);
 
                 // Set the value of this point in the terrainMap
-                float scaledNoiseValue = thisHeight * voxel_resolution;
+                float scaledNoiseValue = thisHeight ;
                 points[x][y][z] = YarnVoxelData::YVPointValue(1, floatToInt16(scaledNoiseValue));
             }
 
@@ -828,10 +826,10 @@ bool YVoxelChunk::SetPointFromSurrounding(const Vector3i pointNumber, const uint
         return true;
     } else {
         const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
-        auto other_chunk_number = parent_yarnvoxel->GetChunkNumberFromPosition(desired_pos_other);
+        auto other_chunk_number = parent_yarnvoxel->FindChunkNumberFromPosition(desired_pos_other);
         YVoxelChunk* neighbour_chunk = nullptr;
         if(parent_yarnvoxel->try_get_chunk(other_chunk_number,neighbour_chunk)) {
-            const auto other_point_pos = parent_yarnvoxel->GetPointNumberFromPosition(desired_pos_other);
+            const auto other_point_pos = parent_yarnvoxel->FindPointNumberFromPosition(desired_pos_other);
             neighbour_chunk->SetPointFromSurrounding(other_point_pos,desiredByte, originatorPointNumber);
             return true;
         }
@@ -839,7 +837,26 @@ bool YVoxelChunk::SetPointFromSurrounding(const Vector3i pointNumber, const uint
     return false;
 }
 
-bool YVoxelChunk::SetPointDensity(const Vector3i pointNumber,const float desired_density, const uint8_t desiredByte) {
+bool YVoxelChunk::SetPointDensity(const Vector3i pointNumber,const float desired_density) {
+    auto my_desired_density = floatToInt16(desired_density);
+    if(is_point_position_in_range_without_neighbours(pointNumber.x,pointNumber.y,pointNumber.z)) {
+        const auto vpv = &points[pointNumber.x][pointNumber.y][pointNumber.z];
+        vpv->floatValue = my_desired_density;
+        return true;
+    } else {
+        const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
+        auto other_chunk_number = parent_yarnvoxel->FindChunkNumberFromPosition(desired_pos_other);
+        YVoxelChunk* neighbour_chunk = nullptr;
+        if(parent_yarnvoxel->try_get_chunk(other_chunk_number,neighbour_chunk)) {
+            const auto other_point_pos = parent_yarnvoxel->FindPointNumberFromPosition(desired_pos_other);
+            neighbour_chunk->SetPointDensity(other_point_pos,desired_density);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool YVoxelChunk::SetPointDensityAndType(const Vector3i pointNumber,const float desired_density, const uint8_t desiredByte) {
     auto my_desired_density = floatToInt16(desired_density);
     if(is_point_position_in_range_without_neighbours(pointNumber.x,pointNumber.y,pointNumber.z)) {
         const auto vpv = &points[pointNumber.x][pointNumber.y][pointNumber.z];
@@ -848,11 +865,71 @@ bool YVoxelChunk::SetPointDensity(const Vector3i pointNumber,const float desired
         return true;
     } else {
         const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
-        auto other_chunk_number = parent_yarnvoxel->GetChunkNumberFromPosition(desired_pos_other);
+        auto other_chunk_number = parent_yarnvoxel->FindChunkNumberFromPosition(desired_pos_other);
         YVoxelChunk* neighbour_chunk = nullptr;
         if(parent_yarnvoxel->try_get_chunk(other_chunk_number,neighbour_chunk)) {
-            const auto other_point_pos = parent_yarnvoxel->GetPointNumberFromPosition(desired_pos_other);
-            neighbour_chunk->SetPointDensity(other_point_pos,desired_density,desiredByte);
+            const auto other_point_pos = parent_yarnvoxel->FindPointNumberFromPosition(desired_pos_other);
+            neighbour_chunk->SetPointDensityAndType(other_point_pos,desired_density,desiredByte);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool YVoxelChunk::SetPointDensityAndHealth(const Vector3i pointNumber,const float desired_density, const uint8_t health) {
+    auto my_desired_density = floatToInt16(desired_density);
+    if(is_point_position_in_range_without_neighbours(pointNumber.x,pointNumber.y,pointNumber.z)) {
+        const auto vpv = &points[pointNumber.x][pointNumber.y][pointNumber.z];
+        vpv->health = health;
+        vpv->floatValue = my_desired_density;
+        return true;
+    } else {
+        const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
+        auto other_chunk_number = parent_yarnvoxel->FindChunkNumberFromPosition(desired_pos_other);
+        YVoxelChunk* neighbour_chunk = nullptr;
+        if(parent_yarnvoxel->try_get_chunk(other_chunk_number,neighbour_chunk)) {
+            const auto other_point_pos = parent_yarnvoxel->FindPointNumberFromPosition(desired_pos_other);
+            neighbour_chunk->SetPointDensityAndHealth(other_point_pos,desired_density,health);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool YVoxelChunk::SetPointDensityTypeAndHealth(const Vector3i pointNumber,const float desired_density, const uint8_t desiredByte, const uint8_t health) {
+    auto my_desired_density = floatToInt16(desired_density);
+    if(is_point_position_in_range_without_neighbours(pointNumber.x,pointNumber.y,pointNumber.z)) {  
+        const auto vpv = &points[pointNumber.x][pointNumber.y][pointNumber.z];
+        vpv->byteValue = desiredByte;
+        vpv->floatValue = my_desired_density;
+        vpv->health = health;
+        return true;
+    } else {
+        const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
+        auto other_chunk_number = parent_yarnvoxel->FindChunkNumberFromPosition(desired_pos_other);
+        YVoxelChunk* neighbour_chunk = nullptr;
+        if(parent_yarnvoxel->try_get_chunk(other_chunk_number,neighbour_chunk)) {
+            const auto other_point_pos = parent_yarnvoxel->FindPointNumberFromPosition(desired_pos_other);
+            neighbour_chunk->SetPointDensityTypeAndHealth(other_point_pos,desired_density,desiredByte,health);
+            return true;
+        }
+    }
+    return false;
+}
+
+
+bool YVoxelChunk::SetPointHealth(const Vector3i pointNumber, const uint8_t health) {
+    if(is_point_position_in_range_without_neighbours(pointNumber.x,pointNumber.y,pointNumber.z)) {  
+        const auto vpv = &points[pointNumber.x][pointNumber.y][pointNumber.z];
+        vpv->health = health;
+        return true;
+    } else {
+        const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
+        auto other_chunk_number = parent_yarnvoxel->FindChunkNumberFromPosition(desired_pos_other);
+        YVoxelChunk* neighbour_chunk = nullptr;
+        if(parent_yarnvoxel->try_get_chunk(other_chunk_number,neighbour_chunk)) {
+            const auto other_point_pos = parent_yarnvoxel->FindPointNumberFromPosition(desired_pos_other);
+            neighbour_chunk->SetPointHealth(other_point_pos,health);
             return true;
         }
     }
@@ -866,10 +943,10 @@ bool YVoxelChunk::SetPoint(const Vector3i pointNumber, const uint8_t desiredByte
         return true;
     } else {
         const auto desired_pos_other = get_world_pos_from_point_number(pointNumber);
-        auto other_chunk_number = parent_yarnvoxel->GetChunkNumberFromPosition(desired_pos_other);
+        auto other_chunk_number = parent_yarnvoxel->FindChunkNumberFromPosition(desired_pos_other);
         YVoxelChunk* neighbour_chunk = nullptr;
         if(parent_yarnvoxel->try_get_chunk(other_chunk_number,neighbour_chunk)) {
-            const auto other_point_pos = parent_yarnvoxel->GetPointNumberFromPosition(desired_pos_other);
+            const auto other_point_pos = parent_yarnvoxel->FindPointNumberFromPosition(desired_pos_other);
             neighbour_chunk->SetPoint(other_point_pos,desiredByte);
             return true;
         }
@@ -901,6 +978,13 @@ void YVoxelChunk::clear_triangles() {
     mesh_triangles.clear();
     output_pos_to_index.clear();
     clear_edge_vertex_data();
+}
+
+void YVoxelChunk::smooth_chunk_voxels() {
+    if (parent_yarnvoxel == nullptr) {
+        return;
+    }
+    parent_yarnvoxel->smooth_voxel_chunk(this);
 }
 
 void YVoxelChunk::smooth_normals(PackedVector3Array &vertices, PackedVector3Array &normals, PackedInt32Array &indices, PackedColorArray &colors, float angle_threshold) {
@@ -977,14 +1061,14 @@ void YVoxelChunk::smooth_normals(PackedVector3Array &vertices, PackedVector3Arra
     }
 }
 
-void YVoxelChunk::MarchCube (Vector3i position, float voxel_resolution, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config, bool smoothing) {
+void YVoxelChunk::MarchCube (Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health, bool smoothing) {
     bool is_triple_polycount = parent_yarnvoxel->is_triple_polycount;
     // If the configuration of this cube is 0 or 255 (completely inside the terrain or completely outside of it) we don't need to do anything.
     if (configIndex == 0 || configIndex == 255) return;
     Vector3 triangleVert1 = YARNVOXEL_VECTOR3_ZERO, triangleVert2 = YARNVOXEL_VECTOR3_ZERO;
-    const Vector3 posBlockBottomCorner = Vector3(position.x * voxel_resolution, 
-                                                 position.y * voxel_resolution, 
-                                                 position.z * voxel_resolution);
+    const Vector3 posBlockBottomCorner = Vector3(position.x , 
+                                                 position.y , 
+                                                 position.z );
     int currentTriangleCount = 0;
     int trianglesCreated = 0;
     bool already_has_prop = false;
@@ -997,8 +1081,8 @@ void YVoxelChunk::MarchCube (Vector3i position, float voxel_resolution, int conf
             // If the current edgeIndex is -1, there are no more indices and we can exit the function.
             if (indice == -1) return;
             // Get the vertices for the start and end of this edge.
-            Vector3 vert1 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][0]] * voxel_resolution;
-            Vector3 vert2 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][1]] * voxel_resolution;
+            Vector3 vert1 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][0]] ;
+            Vector3 vert2 = posBlockBottomCorner + YarnVoxelData::CornerTable[YarnVoxelData::EdgeIndexes[indice][1]] ;
 
             Vector3 vertPosition;
             if (!smoothing) {
@@ -1064,7 +1148,7 @@ void YVoxelChunk::MarchCube (Vector3i position, float voxel_resolution, int conf
 
                     if (is_triple_polycount) {
                         auto triangle_area = YarnVoxelData::TriangleAreaTable[configIndex][trianglesCreated];
-                        if (triangle_area>30) {
+                        if (triangle_area>20) {
                             Vector3 middle_pos = triangleVert1.lerp(triangleVert2,0.5).lerp(vertPosition,0.5);
                             YarnVoxelData::YVTriangleData newTriangleData1 = YarnVoxelData::YVTriangleData(triangleVert1, triangleVert2, middle_pos, desiredByte,health);
                             YarnVoxelData::YVTriangleData newTriangleData2 = YarnVoxelData::YVTriangleData(middle_pos, triangleVert2, vertPosition, desiredByte,health);
@@ -1120,6 +1204,11 @@ void YVoxelChunk::_on_tree_exiting() {
     has_done_ready = false;
     if (parent_yarnvoxel != nullptr) {
         parent_yarnvoxel->yvchunks.erase(chunk_number);
+        if (parent_yarnvoxel->last_used_chunk_number == chunk_number) {
+            parent_yarnvoxel->last_used_chunk = nullptr;
+            parent_yarnvoxel->last_used_chunk_number = Vector3i();
+            parent_yarnvoxel->has_last_used_chunk = false;
+        }
         parent_yarnvoxel = nullptr;
     }
     if (root_collision_instance.is_valid()) {
@@ -1189,7 +1278,9 @@ void YVoxelChunk::deferred_set_dirty() {
 }
 
 void YVoxelChunk::do_ready() {
-    //print_line(vformat("do_ready ychunk %s , has done ready? %s has registered chunk number? %s, what's the chunk number? %s",get_name(),has_done_ready,has_registered_chunk_number,chunk_number));
+    if (debugging_level > 2) {
+        print_line(vformat("do_ready ychunk %s , has done ready? %s has registered chunk number? %s, what's the chunk number? %s",get_name(),has_done_ready,has_registered_chunk_number,chunk_number));
+    }
     if (has_done_ready) {
         return;
     }
@@ -1336,11 +1427,11 @@ float YVoxelChunk::get_density_at_point(Vector3i point_pos) {
     
     // Point is in a neighboring chunk
     Vector3 world_pos = get_world_pos_from_point_number(point_pos);
-    Vector3i neighbor_chunk_number = parent_yarnvoxel->GetChunkNumberFromPosition(world_pos);
+    Vector3i neighbor_chunk_number = parent_yarnvoxel->FindChunkNumberFromPosition(world_pos);
     YVoxelChunk* neighbor_chunk = nullptr;
     
     if (parent_yarnvoxel->try_get_chunk(neighbor_chunk_number, neighbor_chunk)) {
-        Vector3i local_pos = parent_yarnvoxel->GetPointNumberFromPosition(world_pos);
+        Vector3i local_pos = parent_yarnvoxel->FindPointNumberFromPosition(world_pos);
         if (neighbor_chunk->is_point_position_in_range(local_pos.x, local_pos.y, local_pos.z)) {
             return int16ToFloat(neighbor_chunk->points[local_pos.x][local_pos.y][local_pos.z].floatValue);
         }
@@ -1348,6 +1439,28 @@ float YVoxelChunk::get_density_at_point(Vector3i point_pos) {
     
     // If we can't get the neighbor data, return a default value
     return YARNVOXEL_TERRAIN_SURFACE;
+}
+
+uint8_t YVoxelChunk::get_health_at_point(Vector3i point_pos) {
+    // Check if point is in current chunk's range
+    if (is_point_position_in_range(point_pos.x, point_pos.y, point_pos.z)) {
+        return points[point_pos.x][point_pos.y][point_pos.z].health;
+    }
+    
+    // Point is in a neighboring chunk
+    Vector3 world_pos = get_world_pos_from_point_number(point_pos);
+    Vector3i neighbor_chunk_number = parent_yarnvoxel->FindChunkNumberFromPosition(world_pos);
+    YVoxelChunk* neighbor_chunk = nullptr;
+    
+    if (parent_yarnvoxel->try_get_chunk(neighbor_chunk_number, neighbor_chunk)) {
+        Vector3i local_pos = parent_yarnvoxel->FindPointNumberFromPosition(world_pos);
+        if (neighbor_chunk->is_point_position_in_range(local_pos.x, local_pos.y, local_pos.z)) {
+            return neighbor_chunk->points[local_pos.x][local_pos.y][local_pos.z].health;
+        }
+    }
+    
+    // If we can't get the neighbor data, return a default value
+    return 0;
 }
 
 // Edge vertex tracking methods implementation
@@ -1362,14 +1475,12 @@ uint32_t YVoxelChunk::hash_vertex_position(const Vector3& world_position) const 
 bool YVoxelChunk::is_vertex_on_chunk_edge(const Vector3& local_position) const {
     if (!parent_yarnvoxel) return false;
 
-    float voxel_resolution = parent_yarnvoxel->get_voxel_resolution();
-
     // Check if the vertex is on any of the chunk boundaries
-    float chunk_width_world = YARNVOXEL_CHUNK_WIDTH * voxel_resolution;
-    float chunk_height_world = YARNVOXEL_CHUNK_HEIGHT * voxel_resolution;
+    float chunk_width_world = YARNVOXEL_CHUNK_WIDTH ;
+    float chunk_height_world = YARNVOXEL_CHUNK_HEIGHT ;
 
     // Use a small tolerance for floating point precision
-    const float tolerance = voxel_resolution * 0.01f;
+    const float tolerance = 0.01f;
 
     return (Math::is_equal_approx(local_position.x, 0.0f, tolerance) ||
             Math::is_equal_approx(local_position.x, chunk_width_world, tolerance) ||
@@ -1387,17 +1498,25 @@ void YVoxelChunk::register_edge_vertex(const Vector3& local_position, int normal
     edge_vertex_normal_indices[hash] = normal_index;
     edge_vertex_positions[hash] = world_position;
 
-    if (parent_yarnvoxel && parent_yarnvoxel->get_debugging_config() > 2) {
-        print_line(vformat("[YVoxelChunk %s] Registered edge vertex at world_pos %s (local %s) with normal index %d (hash: %d)", chunk_number, world_position, local_position, normal_index, hash));
-    }
+    // if (parent_yarnvoxel && debugging_level > 2) {
+    //     print_line(vformat("[YVoxelChunk %s] Registered edge vertex at world_pos %s (local %s) with normal index %d (hash: %d)", chunk_number, world_position, local_position, normal_index, hash));
+    // }
 }
+
+// void YVoxelChunk::RelaxMesh() {
+//     // In this method, it takes all vertexes in the mesh (Excluding the ones in the boundaries of the chunk since they need to match other chunks)
+//     // It then slides them along the surface of the mesh to achieve a smoother surface with more space between edges/vertices.
+//     // For checking if a vertex is on the edge of the chunk, we can hash the vertex position with uint32_t hash = hash_vertex_position(world_position);
+//     // And we can then check if that hash is in the edge_vertex_positions hashmap: edge_vertex_positions.has(hash)
+
+// }
 
 void YVoxelChunk::synchronize_edge_normals_with_neighbors() {
     if (!parent_yarnvoxel) return;
     
-    if (parent_yarnvoxel->get_debugging_config() > 2) {
-        print_line(vformat("[YVoxelChunk] Synchronizing %d edge vertices for chunk %s", edge_vertex_normal_indices.size(), chunk_number));
-    }
+    // if (debugging_level > 2) {
+    //     print_line(vformat("[YVoxelChunk] Synchronizing %d edge vertices for chunk %s", edge_vertex_normal_indices.size(), chunk_number));
+    // }
     
     // For each edge vertex, find neighboring chunks and average normals
     for (const KeyValue<uint32_t, int>& kvp : edge_vertex_normal_indices) {
@@ -1408,9 +1527,9 @@ void YVoxelChunk::synchronize_edge_normals_with_neighbors() {
             Vector3 averaged_normal = get_averaged_edge_normal(position);
             normals.write[current_normal_index] = averaged_normal;
             
-            if (parent_yarnvoxel->get_debugging_config() > 3) {
-                print_line(vformat("[YVoxelChunk %s] Updated normal at index %d (hash: %d) for position %s from %s to %s", chunk_number, current_normal_index, kvp.key, position, normals[current_normal_index], averaged_normal));
-            }
+            // if (debugging_level > 3) {
+            //     print_line(vformat("[YVoxelChunk %s] Updated normal at index %d (hash: %d) for position %s from %s to %s", chunk_number, current_normal_index, kvp.key, position, normals[current_normal_index], averaged_normal));
+            // }
         }
     }
 }
@@ -1438,9 +1557,9 @@ Vector3 YVoxelChunk::get_averaged_edge_normal(const Vector3 &world_position) con
 						if (normal_idx >= 0 && normal_idx < neighbor->normals.size()) {
 							accumulated_normal += neighbor->normals[normal_idx];
 							count++;
-							if (parent_yarnvoxel->get_debugging_config() > 1 && neighbor != this) {
-								print_line(vformat("[YVoxelChunk %s] Found matching normal in neighbor %s for world_pos %s", chunk_number, neighbor_chunk_pos, world_position));
-							}
+							// if (debugging_level > 1 && neighbor != this) {
+							// 	print_line(vformat("[YVoxelChunk %s] Found matching normal in neighbor %s for world_pos %s", chunk_number, neighbor_chunk_pos, world_position));
+							// }
 						}
 					}
 				}
@@ -1532,7 +1651,9 @@ void YVoxelChunk::_bind_methods() {
 
     ClassDB::bind_method(D_METHOD("set_simplification_distance", "distance"), &YVoxelChunk::set_simplification_distance);
     ClassDB::bind_method(D_METHOD("get_simplification_distance"), &YVoxelChunk::get_simplification_distance);
-    //
+    
+    ClassDB::bind_method(D_METHOD("smooth_chunk_voxels"), &YVoxelChunk::smooth_chunk_voxels);
+
     // ClassDB::bind_method(D_METHOD("set_use_collision", "operation"), &YVoxelChunk::set_use_collision);
     // ClassDB::bind_method(D_METHOD("is_using_collision"), &YVoxelChunk::is_using_collision);
 
@@ -1566,49 +1687,60 @@ void YVoxelChunk::_bind_methods() {
     ADD_PROPERTY(PropertyInfo(Variant::INT, "collision_mask", PROPERTY_HINT_LAYERS_3D_PHYSICS), "set_collision_mask", "get_collision_mask");
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "collision_priority"), "set_collision_priority", "get_collision_priority");
 
+    ClassDB::bind_method(D_METHOD("set_debugging_level", "level"), &YVoxelChunk::set_debugging_level, DEFVAL(0));
+    ClassDB::bind_method(D_METHOD("get_debugging_level"), &YVoxelChunk::get_debugging_level);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "debugging_level", PROPERTY_HINT_ENUM, "No Debugging,Low,Medium,High"), "set_debugging_level", "get_debugging_level");
+
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "simplification_distance"), "set_simplification_distance", "get_simplification_distance");
 }
 
 void YVoxelChunk::set_chunk_number(Vector3i v) {
-    //print_line(get_name(),"Set chunk number (current ",chunk_number," new ",v,") has registered? ",has_registered_chunk_number," has yarn voxel singleton? ",YarnVoxel::get_singleton() != nullptr);
-    
-        if (parent_yarnvoxel == nullptr) {
-            parent_yarnvoxel = get_parent_yarnvoxel();
-        }
-        if (parent_yarnvoxel != nullptr) {
-            if (chunk_number != v || !has_registered_chunk_number) {
-                if (!has_done_ready) {
-                    pending_set_chunk_number_on_parent = true;
-                    chunk_number = v;
-                    return;
-                }
-                YVoxelChunk* find_chunk = nullptr;
-                if(has_registered_chunk_number && parent_yarnvoxel != nullptr && parent_yarnvoxel->try_get_chunk(chunk_number, find_chunk) && find_chunk == this) {
-                    parent_yarnvoxel->yvchunks.erase(chunk_number);
-                }
-                parent_yarnvoxel->yvchunks[v] = get_instance_id();
-                has_registered_chunk_number=true;
-                if(is_inside_tree()) {
-                    set_bottom_corner_world_pos(parent_yarnvoxel->GetBottomCornerForChunkInNumber(chunk_number));
-                    set_global_position(bottom_corner_world_pos);
-                }
+    if (!has_initialized) {
+        chunk_number = v;
+        pending_set_chunk_number_on_parent = true;
+        return;
+    }
+    // print_line(get_name()," Set chunk number (current ",chunk_number," new ",v,") has registered? ",has_registered_chunk_number," has yarn voxel singleton? ",parent_yarnvoxel != nullptr ? parent_yarnvoxel->get_name() : "null");
+    if (parent_yarnvoxel == nullptr) {
+        parent_yarnvoxel = get_parent_yarnvoxel();
+    }
+    if (parent_yarnvoxel != nullptr) {
+        if (chunk_number == Vector3i{-99999,-99999,-99999} || chunk_number != v || !has_registered_chunk_number) {
+            if (!has_done_ready) {
+                pending_set_chunk_number_on_parent = true;
                 chunk_number = v;
+                return;
             }
+            YVoxelChunk* find_chunk = nullptr;
+            if(has_registered_chunk_number && parent_yarnvoxel != nullptr && parent_yarnvoxel->try_get_chunk(chunk_number, find_chunk) && find_chunk == this) {
+                parent_yarnvoxel->yvchunks.erase(chunk_number);
+            }
+            parent_yarnvoxel->yvchunks[v] = get_instance_id();
+            has_registered_chunk_number=true;
+            if(is_inside_tree()) {
+                set_bottom_corner_world_pos(parent_yarnvoxel->GetBottomCornerForChunkInNumber(chunk_number));
+                set_global_position(bottom_corner_world_pos);
+            }
+            chunk_number = v;
         }
+    }
 }
 
 Vector3 YVoxelChunk::get_world_pos_from_point_number(Vector3i pointNumber) const {
-    return {bottom_corner_world_pos.x + pointNumber.x * parent_yarnvoxel->get_voxel_resolution(), 
-            bottom_corner_world_pos.y + pointNumber.y * parent_yarnvoxel->get_voxel_resolution(), 
-            bottom_corner_world_pos.z + pointNumber.z * parent_yarnvoxel->get_voxel_resolution()};
+    return {bottom_corner_world_pos.x + pointNumber.x, 
+            bottom_corner_world_pos.y + pointNumber.y, 
+            bottom_corner_world_pos.z + pointNumber.z};
 }
 
 void YVoxelChunk::initialize(Vector3i initialize_position) {
     chunk_number = initialize_position;
     has_registered_chunk_number = true;
+    if (debugging_level > 2) {
+        print_line(get_name()," Initialize chunk number ",chunk_number," has yarn voxel singleton? ",parent_yarnvoxel != nullptr ? parent_yarnvoxel->get_name() : "null");
+    }
     ERR_FAIL_COND_MSG(!parent_yarnvoxel, "YVoxelChunk must be a child of a YarnVoxel node");
     if (parent_yarnvoxel != nullptr) {
-        parent_yarnvoxel->set_dirty_chunk(chunk_number);
+        parent_yarnvoxel->set_dirty_chunk_with_pointer(this, chunk_number);
     }
 }
 
@@ -1620,9 +1752,16 @@ YVoxelChunk::YVoxelChunk() {
             }
         }
     }
-    
+    has_initialized = false;
+    has_done_ready = false;
+    has_registered_chunk_number = false;
     chunk_number = Vector3i{-99999,-99999,-99999};
-
     completed_generation = SNAME("completed_generation");
 }
 
+YVoxelChunk::~YVoxelChunk() {
+    if (has_initialized) {
+        clear_all_points();
+        has_initialized = false;
+    }
+}

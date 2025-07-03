@@ -22,20 +22,12 @@ class YarnVoxel : public Node3D {
 	GDCLASS(YarnVoxel, Node3D);
 
 	int count;
-	uint8_t debugging_config = 0;
-	int cellSize;
-	float terrainSurface;
-	int ChunkWidth;
-	int ChunkHeight;
-	float voxel_resolution; // New property for voxel resolution (1.0 = 1 unit per voxel, 0.5 = 0.5 units per voxel, etc.)
+
 	Vector3i debug_pos;
-	float DivideForChunkWidth;
-	float DivideForChunkHeight;
-	float BaseTerrainHeight; // Minimum height of terrain.
-	float TerrainHeightRange; // The max height (above BaseTerrainHeight) our terrain can be.
+
 	bool calculate_custom_normals;
 	bool serialize_when_generating;
-	float simplification_distance;
+
 	float smooth_normal_angle;
 
 	float line_noise_strength = 0.1f;
@@ -47,20 +39,27 @@ protected:
 
 public:
 	uint8_t degugging_level = 0;
+
 	uint64_t ticks_last_started_generating;
 	uint64_t ticks_last_completed;
 	Vector3i last_chunk_started_generating;
 	Vector3i last_chunk_completed;
+
 	HashMap<Vector3i,ObjectID> yvchunks;
 	bool is_generating;
 	bool using_default_shader = false;
 	bool get_is_generating() const {return is_generating;}
-	bool is_debugging_chunk;
+	
 	bool is_triple_polycount;
+	void set_is_triple_polycount(bool b) {is_triple_polycount = b;}
+	bool get_is_triple_polycount() const {return is_triple_polycount;}
+
 	bool smoothing = false;
+
 	void set_smoothing(bool b) {
 		smoothing = b; }
 	bool get_smoothing() {return smoothing;}
+	
 	bool generate_grass{};
 	void set_generate_grass(bool status) {generate_grass = status;}
 	bool get_generate_grass() const {return generate_grass;}
@@ -84,7 +83,6 @@ public:
 
 	_FORCE_INLINE_ static Vector<ObjectID> yarnvoxel_instances;
 
-	Vector3i debuggin_chunk;
 	Vector3i right = Vector3i(1, 0, 0);
 	Vector3i up = Vector3i(0, 1, 0);
 	Vector3i forward = Vector3i(0, 0, 1);
@@ -109,28 +107,12 @@ public:
 	};
 	//UTILITIES:
 	static int FastFloor(float f);
+
 	Vector<Vector3i> DirtyChunksQueue;
 
 	TypedArray<Vector3i> get_dirty_chunks_queued() const;
 
     	String dirty_chunk_queue_info();
-
-	bool get_is_debugging_chunk() {return is_debugging_chunk;}
-	void set_is_debugging_chunk(bool val) {is_debugging_chunk = val;}
-
-	Vector3i get_debugging_chunk() {return debuggin_chunk;}
-	void set_debugging_chunk(Vector3i val) {debuggin_chunk = val;}
-	//PROPERTIES
-	int get_cell_size() const;
-
-	void set_cell_size(int val);
-
-	int get_debugging_config() const;
-
-	void set_debugging_config(int val);
-
-	int get_debug_pos() const;
-	void set_debug_pos(Vector3i val);
 
 	void set_material(const Ref<Material> &p_material);
 
@@ -148,11 +130,15 @@ public:
 
 	void modify_voxel_area(Vector3i pos, float amount, int brushSize, int block_type = -1);
 
+	void smoothly_modify_voxel_area(Vector3i pos, float amount, int brushSize, int block_type = -1);
+
 	Array find_closest_solid_point_to(Vector3 pos, int search_radius = 2);
 
 	bool damage_voxel_area(Vector3i pos, uint8_t amount, int brushSize);
 
 	void smooth_voxel_area(Vector3i pos, float amount, int brushSize);
+
+	void smooth_voxel_chunk(YVoxelChunk* chunk);
 
 	static bool IsPointNumberInBoundary(Vector3i bnumber);
 
@@ -168,6 +154,7 @@ public:
 
 	void regenerate_all_chunks();
 	void set_dirty_chunk(Vector3i chunkNumber);
+	void set_dirty_chunk_with_pointer(YVoxelChunk* chunk, Vector3i chunkNumber);
 
 	static float static_perlin_noise (float x,float y);
 	static float static_perlin_noise_3d (float x,float y, float z);
@@ -179,9 +166,7 @@ public:
 	Vector3 CalculateCellCenterPosition(Vector2i gridPosition);
 	Vector3 GetBottomCornerForChunkInNumber(Vector3i ChunkNumber);
 	Vector3i FindChunkNumberFromPosition(Vector3 pos);
-	Vector3i GetChunkNumberFromPosition(Vector3 pos);
 
-	Vector3i GetPointNumberFromPosition(Vector3 pos);
 	Vector3i FindPointNumberFromPosition(Vector3 pos);
 
 	uint8_t FindHealthValueForPos(Vector3 pos);
@@ -194,9 +179,11 @@ public:
 
 	YarnVoxelData::YVPointValue get_point_data_for_wpos(Vector3 pos);
 
-	int HashKey(Vector3 v);
-
 	bool try_get_chunk(Vector3i chunkPosition, YVoxelChunk*& chunk_pointer);
+
+	YVoxelChunk* last_used_chunk;
+	Vector3i last_used_chunk_number;
+	bool has_last_used_chunk;
 
 	YVoxelChunk *get_chunk(Vector3i chunkPosition);
 
@@ -209,22 +196,9 @@ public:
 
 	void empty_all_chunks();
 
-	void clear_all_chunks();
-
 	bool IsPositionValid(Vector3i pos);
 
 	Vector3 find_air_position_with_clearance(Vector3 center_pos, int radius, float required_clearance);
-
-	float get_simplification_distance() const { return simplification_distance; }
-	void set_simplification_distance(float distance) { simplification_distance = distance; }
-
-	// Resolution getters and setters
-	float get_voxel_resolution() const { return voxel_resolution; }
-	void set_voxel_resolution(float resolution) { voxel_resolution = resolution; }
-	
-	// Helper methods for coordinate conversion with resolution
-	Vector3 voxel_to_world_position(Vector3i voxel_pos) const;
-	Vector3i world_to_voxel_position(Vector3 world_pos) const;
 };
 
 VARIANT_ENUM_CAST(YarnVoxel::BlockType);

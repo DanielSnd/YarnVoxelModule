@@ -25,8 +25,8 @@ IGE_Curve::~IGE_Curve() {
 }
 
 float IGE_Curve::DoApplyEffectSpot(Vector2 &spot, Vector2 &size, float input, int seed, bool doDebug) {
-    const int x = static_cast<int>(spot.x);
-    const int z = static_cast<int>(spot.y);
+    // const int x = static_cast<int>(spot.x);
+    // const int z = static_cast<int>(spot.y);
 
     if (!curve.is_valid()) return input;
     if (normalize) {

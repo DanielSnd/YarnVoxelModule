@@ -28,10 +28,20 @@
 			<description>
 			</description>
 		</method>
+		<method name="clear_edge_vertex_data">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
 		<method name="deferred_set_dirty">
 			<return type="void" />
 			<description>
 				Marks the chunk as "dirty" in the YarnVoxel system, which causes it to be queued for mesh regeneration. This is a deferred operation, meaning the regeneration happens in a later frame rather than immediately.
+			</description>
+		</method>
+		<method name="force_synchronize_edge_normals">
+			<return type="void" />
+			<description>
 			</description>
 		</method>
 		<method name="generate">
@@ -155,6 +165,11 @@
 				Sets the chunk's voxel data from a serialized byte array and triggers deserialization. This is used for loading chunks from storage or network transmission.
 
 				The data should be in the format produced by get_data(), using a run-length encoding scheme for efficient storage.
+			</description>
+		</method>
+		<method name="synchronize_edge_normals_with_neighbors">
+			<return type="void" />
+			<description>
 			</description>
 		</method>
 	</methods>

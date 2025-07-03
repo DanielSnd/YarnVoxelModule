@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="YarnVoxel" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="YarnVoxel" inherits="Node3D" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 		A voxel engine system that allows for procedural terrain generation and manipulation using marching cubes.
 	</brief_description>
@@ -29,17 +29,38 @@
 	<tutorials>
 	</tutorials>
 	<methods>
-		<method name="clear_all_chunks">
+		<method name="add_line">
 			<return type="void" />
+			<param index="0" name="start" type="Vector3i" />
+			<param index="1" name="end" type="Vector3i" />
+			<param index="2" name="amount" type="float" />
+			<param index="3" name="typeOfBlock" type="int" default="1" />
+			<param index="4" name="thicknessStart" type="int" default="1" />
+			<param index="5" name="thicknessEnd" type="int" default="1" />
 			<description>
-				Removes all existing chunks from the scene and clears the internal chunk dictionary.
+			</description>
+		</method>
+		<method name="change_float_at_position">
+			<return type="void" />
+			<param index="0" name="position" type="Vector3i" />
+			<param index="1" name="newFloat" type="float" />
+			<param index="2" name="newBlockType" type="int" />
+			<param index="3" name="health" type="int" default="255" />
+			<description>
+			</description>
+		</method>
+		<method name="change_health_at_position">
+			<return type="void" />
+			<param index="0" name="position" type="Vector3i" />
+			<param index="1" name="newHealth" type="int" />
+			<description>
 			</description>
 		</method>
 		<method name="damage_voxel_area">
 			<return type="bool" />
-			<param index="0" name="world_pos" type="Vector3i" />
-			<param index="1" name="amount" type="int" default="30" />
-			<param index="2" name="size" type="int" default="1" />
+			<param index="0" name="pos" type="Vector3i" />
+			<param index="1" name="amount" type="int" />
+			<param index="2" name="brushSize" type="int" />
 			<description>
 				Damages voxels around the specified world position. Returns true if any voxels were damaged.
 
@@ -49,11 +70,6 @@
 				- size: Radius of the spherical area to affect
 
 				When a voxel's health reaches zero, it is destroyed and the "destroyed_voxels" signal is emitted.
-			</description>
-		</method>
-		<method name="dirty_chunk_queue_info">
-			<return type="String" />
-			<description>
 			</description>
 		</method>
 		<method name="find_air_position_with_clearance">
@@ -66,176 +82,64 @@
 		</method>
 		<method name="find_closest_solid_point_to">
 			<return type="Array" />
-			<param index="0" name="world_position" type="Vector3" />
-			<param index="1" name="search_radius" type="int" default="2" />
+			<param index="0" name="pos" type="Vector3" />
+			<param index="1" name="search_radius" type="int" />
 			<description>
 				Finds the closest solid voxel point to the given world position. Returns an Array containing the position of the closest solid point, or an empty Array if no solid point is found within the search radius.
 			</description>
 		</method>
-		<method name="get_block_type">
-			<return type="int" />
-			<param index="0" name="worldPostion" type="Vector3" />
-			<description>
-				Returns the block type (as defined in the BlockType enum) at the specified world position.
-			</description>
-		</method>
-		<method name="get_bottom_corner_for_chunk">
-			<return type="Vector3" />
-			<param index="0" name="chunkNumber" type="Vector3i" />
-			<description>
-				Returns the world position of the bottom corner (minimum point) of the specified chunk.
-			</description>
-		</method>
-		<method name="get_cell_center">
-			<return type="Vector3" />
-			<param index="0" name="gridPosition" type="Vector2i" />
-			<description>
-				Returns the world position of the center of a cell at the specified grid position.
-			</description>
-		</method>
-		<method name="get_chunk">
+		<method name="get_or_create_chunk">
 			<return type="YVoxelChunk" />
-			<param index="0" name="chunkPosition" type="Vector3i" />
+			<param index="0" name="chunk_number" type="Vector3i" />
 			<description>
-				Returns the YVoxelChunk at the specified chunk position. If the chunk doesn't exist, it will be created.
 			</description>
 		</method>
-		<method name="get_chunk_center">
-			<return type="Vector3" />
+		<method name="modify_voxel_area">
+			<return type="void" />
+			<param index="0" name="pos" type="Vector3i" />
+			<param index="1" name="amount" type="float" />
+			<param index="2" name="brushSize" type="int" />
+			<param index="3" name="block_type" type="int" default="0" />
+			<description>
+			</description>
+		</method>
+		<method name="perlin_noise" qualifiers="static">
+			<return type="float" />
+			<param index="0" name="x" type="float" />
+			<param index="1" name="y" type="float" />
+			<description>
+			</description>
+		</method>
+		<method name="perlin_noise_3d" qualifiers="static">
+			<return type="float" />
+			<param index="0" name="x" type="float" />
+			<param index="1" name="y" type="float" />
+			<param index="2" name="z" type="float" />
+			<description>
+			</description>
+		</method>
+		<method name="set_dirty_chunk">
+			<return type="void" />
 			<param index="0" name="chunkNumber" type="Vector3i" />
 			<description>
-				Returns the world position of the center of the specified chunk.
 			</description>
 		</method>
-		<method name="get_chunk_number_from_pos">
-			<return type="Vector3i" />
-			<param index="0" name="worldPostion" type="Vector3" />
-			<description>
-				Converts a world position to its corresponding chunk coordinates.
-			</description>
-		</method>
-		<method name="get_chunks" qualifiers="const">
-			<return type="YVoxelChunk[]" />
-			<description>
-				Returns an array of all currently active YVoxelChunk objects.
-			</description>
-		</method>
-		<method name="get_dirty_chunks_queued" qualifiers="const">
-			<return type="Vector3i[]" />
-			<description>
-			</description>
-		</method>
-		<method name="get_float_value">
-			<return type="float" />
-			<param index="0" name="worldPostion" type="Vector3" />
-			<description>
-				Returns the density float value at the specified world position. Negative values are inside the terrain, positive values are outside.
-			</description>
-		</method>
-		<method name="get_grid_position">
-			<return type="Vector2i" />
-			<param index="0" name="worldPosition" type="Vector3" />
-			<description>
-				Converts a world position to its corresponding 2D grid position (X and Z coordinates).
-			</description>
-		</method>
-		<method name="get_hash_key">
-			<return type="int" />
-			<param index="0" name="worldPostion" type="Vector3" />
-			<description>
-				Returns a unique hash key for the specified world position, used for internal lookups.
-			</description>
-		</method>
-		<method name="get_health_value">
-			<return type="int" />
-			<param index="0" name="worldPostion" type="Vector3" />
-			<description>
-			</description>
-		</method>
-		<method name="get_is_generating" qualifiers="const">
-			<return type="bool" />
-			<description>
-				Returns true if the voxel engine is currently generating or updating chunks.
-			</description>
-		</method>
-		<method name="get_material">
-			<return type="Material" />
-			<description>
-				Returns the material currently used for rendering voxel terrain. If no material is set, returns a default shader material.
-			</description>
-		</method>
-		<method name="get_perlin">
-			<return type="float" />
-			<param index="0" name="pos_x" type="float" />
-			<param index="1" name="pos_y" type="float" />
-			<description>
-				Returns a 2D Perlin noise value at the specified coordinates, useful for terrain generation.
-			</description>
-		</method>
-		<method name="get_perlin_3d">
-			<return type="float" />
-			<param index="0" name="pos_x" type="float" />
-			<param index="1" name="pos_y" type="float" />
-			<param index="2" name="pos_z" type="float" />
-			<description>
-				Returns a 3D Perlin noise value at the specified coordinates, useful for terrain generation.
-			</description>
-		</method>
-		<method name="get_point_number_from_pos">
-			<return type="Vector3i" />
-			<param index="0" name="worldPostion" type="Vector3" />
-			<description>
-				Converts a world position to its corresponding point coordinates within a chunk.
-			</description>
-		</method>
-		<method name="regenerate_all_chunks">
+		<method name="set_line">
 			<return type="void" />
+			<param index="0" name="start" type="Vector3i" />
+			<param index="1" name="end" type="Vector3i" />
+			<param index="2" name="value" type="float" />
+			<param index="3" name="typeOfBlock" type="int" default="1" />
+			<param index="4" name="thicknessStart" type="int" default="1" />
+			<param index="5" name="thicknessEnd" type="int" default="1" />
 			<description>
-				Marks all existing chunks as dirty and regenerates them. This is useful after making large-scale terrain changes.
-			</description>
-		</method>
-		<method name="set_material">
-			<return type="void" />
-			<param index="0" name="material" type="Material" />
-			<description>
-				Sets the material used for rendering voxel terrain meshes.
-			</description>
-		</method>
-		<method name="set_value">
-			<return type="void" />
-			<param index="0" name="value" type="float" />
-			<param index="1" name="block_type" type="int" default="1" />
-			<param index="2" name="health" type="int" default="255" />
-			<description>
-				Sets the voxel value at the position specified by debug_pos. This is primarily for testing purposes.
-
-				Parameters:
-				- value: The density value to set (negative values are inside terrain, positive are outside)
-				- block_type: The type of block to set (from BlockType enum)
-				- health: The health value of the block (affects resistance to damage)
-			</description>
-		</method>
-		<method name="set_value_at">
-			<return type="void" />
-			<param index="0" name="position" type="Vector3i" />
-			<param index="1" name="value" type="float" />
-			<param index="2" name="block_type" type="int" default="1" />
-			<param index="3" name="health" type="int" default="255" />
-			<description>
-				Sets the voxel value at the specified world position.
-
-				Parameters:
-				- position: World position to modify
-				- value: The density value to set (negative values are inside terrain, positive are outside)
-				- block_type: The type of block to set (from BlockType enum)
-				- health: The health value of the block (affects resistance to damage)
 			</description>
 		</method>
 		<method name="smooth_voxel_area">
 			<return type="void" />
-			<param index="0" name="world_pos" type="Vector3i" />
-			<param index="1" name="amount" type="float" default="1" />
-			<param index="2" name="size" type="int" default="1" />
+			<param index="0" name="pos" type="Vector3i" />
+			<param index="1" name="amount" type="float" />
+			<param index="2" name="brushSize" type="int" />
 			<description>
 			</description>
 		</method>
@@ -246,18 +150,27 @@
 				Attempts to get the YVoxelChunk at the specified chunk position. Returns null if the chunk doesn't exist (unlike get_chunk which creates the chunk if it doesn't exist).
 			</description>
 		</method>
+		<method name="voxel_to_world_position" qualifiers="const">
+			<return type="Vector3" />
+			<param index="0" name="voxel_pos" type="Vector3i" />
+			<description>
+			</description>
+		</method>
+		<method name="world_to_voxel_position" qualifiers="const">
+			<return type="Vector3i" />
+			<param index="0" name="world_pos" type="Vector3" />
+			<description>
+			</description>
+		</method>
 	</methods>
 	<members>
 		<member name="calculate_custom_normals" type="bool" setter="set_calculate_custom_normals" getter="get_calculate_custom_normals" default="false">
 		</member>
-		<member name="cell_size" type="int" setter="set_cell_size" getter="get_cell_size" default="256">
+		<member name="cell_size" type="int" setter="set_cell_size" getter="get_cell_size" default="1">
 			The size of grid cells used for terrain calculations. Larger values make terrain more spread out.
 		</member>
-		<member name="debug_pos" type="Vector3i" setter="set_debug_pos" getter="get_debug_pos" default="Vector3i(0, 0, 0)">
+		<member name="debug_pos" type="int" setter="set_debug_pos" getter="get_debug_pos" default="0">
 			A position used for debugging operations, such as the target for the set_value method.
-		</member>
-		<member name="debugging_chunk" type="Vector3i" setter="set_debugging_chunk" getter="get_debugging_chunk" default="Vector3i(0, 0, 0)">
-			The chunk coordinates used for debugging when is_debugging_chunk is true.
 		</member>
 		<member name="debugging_config" type="int" setter="set_debugging_config" getter="get_debugging_config" default="0">
 			Configuration value used for various debugging options.
@@ -271,18 +184,26 @@
 		<member name="grass_mesh" type="Mesh" setter="set_grass_mesh" getter="get_grass_mesh">
 			The mesh to use for rendering grass instances when generate_grass is true.
 		</member>
-		<member name="is_debugging_chunk" type="bool" setter="set_is_debugging_chunk" getter="get_is_debugging_chunk" default="false">
-			Whether to enable debugging for the chunk specified by debugging_chunk.
+		<member name="line_noise_frequency" type="float" setter="set_line_noise_frequency" getter="get_line_noise_frequency" default="0.1">
 		</member>
-		<member name="main_node" type="Node3D" setter="set_main_node" getter="get_main_node">
-			The parent Node3D where all voxel chunks will be spawned as children. If not set, the system will attempt to use the current scene root.
+		<member name="line_noise_strength" type="float" setter="set_line_noise_strength" getter="get_line_noise_strength" default="0.1">
+		</member>
+		<member name="material" type="Material" setter="set_material" getter="get_material">
 		</member>
 		<member name="serialize_when_generating" type="bool" setter="set_serialize_when_generating" getter="get_serialize_when_generating" default="true">
+		</member>
+		<member name="simplification_distance" type="float" setter="set_simplification_distance" getter="get_simplification_distance" default="0.0">
+		</member>
+		<member name="smooth_normal_angle" type="float" setter="set_smooth_normal_angle" getter="get_smooth_normal_angle" default="30.0">
+		</member>
+		<member name="smoothing" type="bool" setter="set_smoothing" getter="get_smoothing" default="false">
+		</member>
+		<member name="voxel_resolution" type="float" setter="set_voxel_resolution" getter="get_voxel_resolution" default="1.0">
 		</member>
 	</members>
 	<signals>
 		<signal name="destroyed_voxels">
-			<param index="0" name="blocks" type="Array" />
+			<param index="0" name="positions" type="Array" />
 			<description>
 				Emitted when voxels are destroyed by the damage_voxel_area method. The blocks parameter contains information about the destroyed voxels.
 			</description>
@@ -293,39 +214,4 @@
 			</description>
 		</signal>
 	</signals>
-	<constants>
-		<constant name="NONE" value="0" enum="BlockType">
-			Represents an empty or air block.
-		</constant>
-		<constant name="GRASS" value="1" enum="BlockType">
-			Represents a grass block type.
-		</constant>
-		<constant name="DIRT" value="2" enum="BlockType">
-			Represents a dirt block type.
-		</constant>
-		<constant name="STONE" value="3" enum="BlockType">
-			Represents a stone block type.
-		</constant>
-		<constant name="SAND" value="4" enum="BlockType">
-			Represents a sand block type.
-		</constant>
-		<constant name="IRON" value="5" enum="BlockType">
-			Represents an iron ore block type.
-		</constant>
-		<constant name="COPPER" value="6" enum="BlockType">
-			Represents a copper ore block type.
-		</constant>
-		<constant name="BRONZE" value="7" enum="BlockType">
-			Represents a bronze ore block type.
-		</constant>
-		<constant name="SILVER" value="8" enum="BlockType">
-			Represents a silver ore block type.
-		</constant>
-		<constant name="GOLD" value="9" enum="BlockType">
-			Represents a gold ore block type.
-		</constant>
-		<constant name="DIAMOND" value="10" enum="BlockType">
-			Represents a diamond ore block type.
-		</constant>
-	</constants>
 </class>

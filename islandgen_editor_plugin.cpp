@@ -98,7 +98,7 @@ public:
 		for (ObjectID instanceObjID : YarnVoxel::yarnvoxel_instances) {
 			YarnVoxel* yarnvoxel = Object::cast_to<YarnVoxel>(ObjectDB::get_instance(instanceObjID));
 			if (yarnvoxel) {
-				yarnvoxel->clear_all_chunks();
+				yarnvoxel->empty_all_chunks();
 			}
 		}
 	}

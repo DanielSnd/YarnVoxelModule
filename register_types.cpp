@@ -14,6 +14,7 @@
 #include "yarnvoxel.h"
 #include "yvoxelchunk.h"
 #include "island_gen_node.h"
+#include "ycelular_automata.h"
 
 #ifdef TOOLS_ENABLED
 #include "islandgen_editor_plugin.h"
@@ -48,6 +49,7 @@ void initialize_yarnvoxel_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<IGE_MathOperation>();
 	ClassDB::register_class<IGE_Curve>();
 	ClassDB::register_class<IGE_Terrace>();
+	ClassDB::register_class<YCellularAutomata>();
 }
 
 void uninitialize_yarnvoxel_module(ModuleInitializationLevel p_level) {

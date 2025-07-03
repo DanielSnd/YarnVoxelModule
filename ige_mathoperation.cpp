@@ -58,7 +58,7 @@ float IGE_MathOperation::Remap(float value, float from1, float to1, float from2,
 }
 float IGE_MathOperation::DoApplyEffectSpot(Vector2 &spot, Vector2 &size, float input, int seed, bool doDebug) {
     float doResult = input;
-    float originalResult = input;
+    
     switch (math_type) {
         case MathType_Add:
             doResult = input+get_number();

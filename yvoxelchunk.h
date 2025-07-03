@@ -192,7 +192,15 @@ public:
 
     bool SetPointFromSurrounding(const Vector3i pointNumber, const uint8_t desiredByte, const Vector3i originatorPointNumber);
 
-    bool SetPointDensity(Vector3i pointNumber, float desired_density, uint8_t desiredByte);
+    bool SetPointDensityAndType(Vector3i pointNumber, float desired_density, uint8_t desiredByte);
+
+    bool SetPointDensityAndHealth(Vector3i pointNumber, float desired_density, uint8_t health);
+
+    bool SetPointDensityTypeAndHealth(Vector3i pointNumber, float desired_density, uint8_t desiredByte, uint8_t health);
+
+    bool SetPointDensity(Vector3i pointNumber, float desired_density);
+
+    bool SetPointHealth(Vector3i pointNumber, uint8_t health);
 
     bool SetPoint(Vector3i pointNumber, uint8_t desiredByte);
 
@@ -237,19 +245,28 @@ public:
 
     void optimize_faces(float p_simplification_dist = 0.1f);
 
-    void MarchCube(Vector3i position, float voxel_resolution, int configIndex, uint8_t desiredByte, uint8_t health, uint8_t debugging_config, bool no_smoothing = false);
+    void MarchCube(Vector3i position, int configIndex, uint8_t desiredByte, uint8_t health, bool no_smoothing = false);
+
+    void smooth_chunk_voxels();
 
     int FindCubeConfiguration(int x, int y, int z);
 
     float get_density_at_point(Vector3i point_pos);
 
+    uint8_t get_health_at_point(Vector3i point_pos);
+
     void _on_tree_exiting();
 
     YVoxelChunk();
+    ~YVoxelChunk();
 
     // Add method to get parent YarnVoxel
     YarnVoxel* get_parent_yarnvoxel() const;
     YarnVoxel* parent_yarnvoxel;
+    bool has_initialized;
+    int debugging_level = 0;
+    void set_debugging_level(int level) {debugging_level = level;}
+    int get_debugging_level() {return debugging_level;}
 
     // Edge vertex tracking methods
     // This system tracks vertices that are on chunk boundaries and synchronizes their normals

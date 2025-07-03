@@ -192,16 +192,29 @@ void YarnVoxelEditorPlugin::handle_holding_down_sculpt() {
 		if (selected.is_empty())
 			return;
 		YarnVoxel* selected_node = Object::cast_to<YarnVoxel>(selected[0]);
-		if (selected_node == nullptr)
-			return;
-		if(!selected_node->try_get_chunk(chunk_number, tryChunk))
-			tryChunk = selected_node->get_chunk(chunk_number);
+		if (selected_node == nullptr) {
+			tryChunk = Object::cast_to<YVoxelChunk>(selected[0]);
+			if (tryChunk == nullptr)
+				return;
+		} else {
+			if(!selected_node->try_get_chunk(chunk_number, tryChunk))
+				return;
+		}
 		if (tryChunk != nullptr) {
-			if (is_holding_shift && yvoxel_bottom_panel->current_tool_selected == 0) {
-				selected_node->smooth_voxel_area(raycast_hit_pos, Math::abs(yvoxel_bottom_panel->brush_strength_value),static_cast<int>(yvoxel_bottom_panel->brush_size_value));
+			if (selected_node == nullptr) {
+				selected_node = tryChunk->get_parent_yarnvoxel();
+				if (selected_node == nullptr)
+					return;
+			}
+			if ((is_holding_shift && (yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_BRUSH || yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_ERASING || yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_SMOOTH_BRUSH)) || yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_SMOOTHING) {
+				selected_node->smooth_voxel_area(raycast_hit_pos, Math::abs(yvoxel_bottom_panel->brush_strength_value) * 2.0f, static_cast<int>(yvoxel_bottom_panel->brush_size_value));
+			} else if (yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_SMOOTH_BRUSH) {
+				selected_node->smoothly_modify_voxel_area(raycast_hit_pos,yvoxel_bottom_panel->brush_strength_value * (yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_ERASING ? -1 : 1) * (is_holding_ctrl ? -1 : 1) * (yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_PAINTING ? 0 : 1), static_cast<int>(yvoxel_bottom_panel->brush_size_value),yvoxel_bottom_panel->current_block_type_selected + 1);
+			} else if (yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_DAMAGING || yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_HEALING) {
+				selected_node->damage_voxel_area(raycast_hit_pos, Math::lerp(0, 255, Math::abs(yvoxel_bottom_panel->brush_strength_value)), static_cast<int>(yvoxel_bottom_panel->brush_size_value));
 			} else {
 				//tryChunk->SetPointDensity(pointsPosition,-0.5,YarnVoxel::BlockType::GRASS);
-				selected_node->modify_voxel_area(raycast_hit_pos,yvoxel_bottom_panel->brush_strength_value * (yvoxel_bottom_panel->current_tool_selected == 1 ? -1 : 1) * (is_holding_ctrl ? -1 : 1) * (yvoxel_bottom_panel->current_tool_selected == 2 ? 0 : 1), static_cast<int>(yvoxel_bottom_panel->brush_size_value),yvoxel_bottom_panel->current_block_type_selected + 1);
+				selected_node->modify_voxel_area(raycast_hit_pos,yvoxel_bottom_panel->brush_strength_value * (yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_ERASING ? -1 : 1) * (is_holding_ctrl ? -1 : 1) * (yvoxel_bottom_panel->current_tool_selected == YVoxelEditorBottomPanel::TOOL_PAINTING ? 0 : 1), static_cast<int>(yvoxel_bottom_panel->brush_size_value),yvoxel_bottom_panel->current_block_type_selected + 1);
 			}
 		}
 	}
@@ -268,7 +281,7 @@ void YarnVoxelEditorPlugin::raycast(Camera3D *p_camera, const Ref<InputEvent> &p
 	if (selected_node == nullptr)
 		return;
 	
-	Vector3i test_chunkNumber = selected_node->GetChunkNumberFromPosition(raycast_hit_pos);
+	Vector3i test_chunkNumber = selected_node->FindChunkNumberFromPosition(raycast_hit_pos);
 	if (test_chunkNumber != chunk_number) {
 		chunk_number = test_chunkNumber;
 	}
@@ -279,7 +292,7 @@ void YarnVoxelEditorPlugin::raycast(Camera3D *p_camera, const Ref<InputEvent> &p
 	YVoxelChunk* find_chunk = nullptr;
 	bool updated_point_data = false;
 	if (selected_node->try_get_chunk(chunk_number, find_chunk)) {
-		const Vector3i blockNumber = selected_node->GetPointNumberFromPosition(Vector3(static_cast<float>(raycast_hit_pos.x),static_cast<float>(raycast_hit_pos.y),static_cast<float>(raycast_hit_pos.z)));
+		const Vector3i blockNumber = selected_node->FindPointNumberFromPosition(Vector3(static_cast<float>(raycast_hit_pos.x),static_cast<float>(raycast_hit_pos.y),static_cast<float>(raycast_hit_pos.z)));
 		if (selected_node->IsPositionValid(blockNumber)) {
 			auto found_point_data = find_chunk->points[blockNumber.x][blockNumber.y][blockNumber.z];
 			yvoxel_bottom_panel->set_debug_label_text(vformat("Hit Pos: %s, New? %s, Chunk: %s, Point Pos %s, Point Type: %s, Float Value: %s",raycast_hit_pos,is_possible_new_position,chunk_number,blockNumber,found_point_data.byteValue,found_point_data.get_float_value_as_float()));
@@ -356,7 +369,11 @@ YVoxelEditorBottomPanel::YVoxelEditorBottomPanel() {
 	current_tool = memnew(OptionButton);
 	top_container->add_child(current_tool);
 	current_tool->add_item("Sculpting");
+	current_tool->add_item("Scultping Smoother");
+	current_tool->add_item("Smoothing");
 	current_tool->add_item("Erasing");
+	current_tool->add_item("Damaging");
+	current_tool->add_item("Healing");
 	current_tool->add_item("Painting");
 	current_tool->connect("item_selected",callable_mp(this,&YVoxelEditorBottomPanel::changed_tool_selection));
 
@@ -406,7 +423,7 @@ YVoxelEditorBottomPanel::YVoxelEditorBottomPanel() {
 }
 
 void YVoxelEditorBottomPanel::changed_tool_selection(int new_selection) {
-	current_tool_selected = new_selection;
+	current_tool_selected = static_cast<Tools>(new_selection);
 }
 
 void YVoxelEditorBottomPanel::changed_point_type_selection(int new_selection) {

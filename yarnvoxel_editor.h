@@ -49,14 +49,26 @@ protected:
     OptionButton* current_tool;
     OptionButton* current_point_type;
 public:
+
+    enum Tools {
+        TOOL_BRUSH = 0,
+        TOOL_SMOOTH_BRUSH = 1,
+        TOOL_SMOOTHING = 2,
+        TOOL_ERASING = 3,
+        TOOL_DAMAGING = 4,
+        TOOL_HEALING = 5,
+        TOOL_PAINTING = 6,
+    };
+
     void set_debug_label_text(const String &string) {
         if (debug_label != nullptr) debug_label->set_text(string);
     }
     float brush_size_value;
     float brush_strength_value;
-    int current_tool_selected;
+    Tools current_tool_selected = TOOL_BRUSH;
     uint8_t current_block_type_selected;
     YVoxelEditorBottomPanel();
+
 
     void changed_tool_selection(int new_selection);
 

@@ -289,7 +289,7 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
                     if (x < firstXAboveWater) firstXAboveWater = x;
                     if (z < firstZAboveWater) firstZAboveWater = z;
                 }
-                Vector3i chunkNumber = yarnvoxel_singleton->GetChunkNumberFromPosition(newPos);
+                Vector3i chunkNumber = yarnvoxel_singleton->FindChunkNumberFromPosition(newPos);
                 if ((previousChunkNumberCached != chunkNumber || !hasIslandChunk)) {
                     currentIslandChunk = yarnvoxel_singleton->get_chunk(chunkNumber);
                     hasIslandChunk = true;
@@ -305,7 +305,7 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
                 uint8_t desiredByte = 2;
                 const bool wasAboveInTerrain = currentIsInTerrain;
                 //bool wasAboveReplacedWith3DDensity = currentIsReplacedWith3DDensity;
-                auto pointsPosition = yarnvoxel_singleton->GetPointNumberFromPosition(newPos);
+                auto pointsPosition = yarnvoxel_singleton->FindPointNumberFromPosition(newPos);
 
                 float density = CLAMP(static_cast<float>(y) - desiredHeight, -1, 1);
 
@@ -377,7 +377,7 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
                     }
                 }
 
-                Vector3i pointsPosition = yarnvoxel_singleton->GetPointNumberFromPosition(newPos);
+                Vector3i pointsPosition = yarnvoxel_singleton->FindPointNumberFromPosition(newPos);
                 int desiredCubeConfig = FindCubeConfiguration(pointsPosition.x,pointsPosition.y,pointsPosition.z,currentIslandChunk, false);
                 if (desiredCubeConfig == 0 || desiredCubeConfig == 255) continue;
                 auto slopeAverage = static_cast<float>(YarnVoxelData::AverageSlopeTable[desiredCubeConfig]);
@@ -401,7 +401,7 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
                     if (!used_chunks.has(underChunkNumber))
                         continue;
 
-                    auto underPoint = yarnvoxel_singleton->GetPointNumberFromPosition(under_point);
+                    auto underPoint = yarnvoxel_singleton->FindPointNumberFromPosition(under_point);
                     auto under_chunk = yarnvoxel_singleton->get_chunk(underChunkNumber);
                     under_chunk->SetPointSurrounding(underPoint, 1);
                 }
@@ -415,13 +415,13 @@ void IslandGenerator::generate_island(Vector3 realWorldPosition) {
             int roundedHeight = YarnVoxel::FastFloor(map[x][z]);
             for (int y = roundedHeight -2; y >= water_level; y--) {
                 newPos.y = y;
-                if (Vector3i chunkNumber = yarnvoxel_singleton->GetChunkNumberFromPosition(newPos); (previousChunkNumberCached != chunkNumber || !hasIslandChunk)) {
+                if (Vector3i chunkNumber = yarnvoxel_singleton->FindChunkNumberFromPosition(newPos); (previousChunkNumberCached != chunkNumber || !hasIslandChunk)) {
                     currentIslandChunk = yarnvoxel_singleton->get_chunk(chunkNumber);
                     previousChunkNumberCached = chunkNumber;
                    // IslandManager.SetDirtyChunk(chunkNumber);
                 }
                 if (currentIslandChunk != nullptr) {
-                    auto pointsPosition = yarnvoxel_singleton->GetPointNumberFromPosition(newPos);
+                    auto pointsPosition = yarnvoxel_singleton->FindPointNumberFromPosition(newPos);
                     auto yvpoint = currentIslandChunk->points[pointsPosition.x][pointsPosition.y][pointsPosition.z];
                     if (yvpoint.floatValue > ZERO_SHORT) continue;
                     Vector3i amountTypeSurrounding = FindBiggestSurroundingIncidence(pointsPosition, currentIslandChunk, false);
@@ -462,10 +462,10 @@ int IslandGenerator::FindCubeConfiguration(int x, int y, int z, YVoxelChunk* ic,
             corner_index = corner_index+1;
         } else {
             auto worldPosToTest = ic->get_world_pos_from_point_number({desired_x,desired_y,desired_z});
-            auto otherChunkNumber = yarnvoxel_singleton->GetChunkNumberFromPosition(worldPosToTest);
+            auto otherChunkNumber = yarnvoxel_singleton->FindChunkNumberFromPosition(worldPosToTest);
             YVoxelChunk* tryChunk = nullptr;
             if(yarnvoxel_singleton->try_get_chunk(otherChunkNumber, tryChunk) && tryChunk != nullptr) {
-                const auto otherDesiredPoint = yarnvoxel_singleton->GetPointNumberFromPosition(worldPosToTest);
+                const auto otherDesiredPoint = yarnvoxel_singleton->FindPointNumberFromPosition(worldPosToTest);
                 const auto point_found = &(tryChunk->points[otherDesiredPoint.x][otherDesiredPoint.y][otherDesiredPoint.z]);
                 if(do_debug) {
                     print_line("Found test point on other chunk ",otherDesiredPoint,", point found ",point_found->floatValue);
@@ -515,11 +515,11 @@ Vector3i IslandGenerator::FindBiggestSurroundingIncidence(Vector3i pointNumber, 
                     print_line("valid pos ",pointPos," found info byte",foundInfo->byteValue," found info float ",foundInfo->floatValue);
             } else {
                 const auto desired_pos_other = ic->get_world_pos_from_point_number(pointPos);
-                auto other_chunk_number = yarnvoxel_singleton->GetChunkNumberFromPosition(desired_pos_other);
+                auto other_chunk_number = yarnvoxel_singleton->FindChunkNumberFromPosition(desired_pos_other);
                 if( calculateAirDirection)
                     print_line("invalid pos ",pointPos," other chunk ",other_chunk_number);
                 if ((other_cached_chunk != nullptr && other_cached_chunk->chunk_number == other_chunk_number)) {
-                    if (const auto other_point_pos = yarnvoxel_singleton->GetPointNumberFromPosition(desired_pos_other); yarnvoxel_singleton->IsPositionValid(other_point_pos)) {
+                    if (const auto other_point_pos = yarnvoxel_singleton->FindPointNumberFromPosition(desired_pos_other); yarnvoxel_singleton->IsPositionValid(other_point_pos)) {
                         foundInfo = &(other_cached_chunk->points[other_point_pos.x][other_point_pos.y][other_point_pos.z]);
                         if( calculateAirDirection)
                             print_line("found in other chunk cached ",other_point_pos," found info byte",foundInfo->byteValue," found info float ",foundInfo->floatValue);
@@ -527,7 +527,7 @@ Vector3i IslandGenerator::FindBiggestSurroundingIncidence(Vector3i pointNumber, 
                         continue;
                     }
                 } else if((yarnvoxel_singleton->try_get_chunk(other_chunk_number, other_cached_chunk) && other_cached_chunk != nullptr)) {
-                    if (const auto other_point_pos = yarnvoxel_singleton->GetPointNumberFromPosition(desired_pos_other); yarnvoxel_singleton->IsPositionValid(other_point_pos)) {
+                    if (const auto other_point_pos = yarnvoxel_singleton->FindPointNumberFromPosition(desired_pos_other); yarnvoxel_singleton->IsPositionValid(other_point_pos)) {
                         foundInfo = &(other_cached_chunk->points[other_point_pos.x][other_point_pos.y][other_point_pos.z]);
                         if( calculateAirDirection)
                             print_line("found in other chunk noncached ",other_point_pos," found info byte",foundInfo->byteValue," found info float ",foundInfo->floatValue);
